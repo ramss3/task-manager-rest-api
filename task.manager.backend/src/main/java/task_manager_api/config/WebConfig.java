@@ -13,14 +13,15 @@ public class WebConfig {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/api/**")
+                registry.addMapping("/**")
                         .allowedOrigins(
                                 "http://localhost:5173",
                                 "https://frontend-production-bf17.up.railway.app"
                         )
-                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                        .allowedMethods("*")
                         .allowedHeaders("*")
-                        .allowCredentials(false);
+                        .allowCredentials(true)
+                        .exposedHeaders("*");
             }
         };
     }
