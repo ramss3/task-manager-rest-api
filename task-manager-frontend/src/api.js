@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:8080/api/tasks";
+const BASE_URL = `${import.meta.env.VITE_API_URL || "http://localhost:8080"}/api/tasks`;
 
 export async function getTasks() {
     const res = await fetch(BASE_URL);
@@ -29,7 +29,6 @@ export async function getStatuses() {
     if (!res.ok) throw new Error("Failed to fetch statuses");
     return res.json();
 }
-
 
 export async function createTask(task) {
     const res = await fetch(BASE_URL, {
