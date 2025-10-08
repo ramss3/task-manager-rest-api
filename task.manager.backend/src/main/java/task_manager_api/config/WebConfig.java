@@ -16,7 +16,7 @@ public class WebConfig {
                 registry.addMapping("/**")
                         .allowedOrigins(
                                 "http://localhost:5173",
-                                "https://frontend-production-bf17.up.railway.app"
+                                "https://taskmanagerapirafaelsilva.up.railway.app/"
                         )
                         .allowedMethods("*")
                         .allowedHeaders("*")
