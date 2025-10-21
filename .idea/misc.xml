@@ -5,6 +5,7 @@
     <option name="originalFiles">
       <list>
         <option value="$PROJECT_DIR$/task.manager.api/pom.xml" />
+        <option value="$PROJECT_DIR$/task.manager.backend/pom.xml" />
       </list>
     </option>
   </component>
