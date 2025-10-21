@@ -308,7 +308,7 @@ public class TeamServiceTest {
         when(teamMembershipRepository.findByTeamAndUser(team, user))
                 .thenReturn(Optional.of(memberToUpdate));
 
-        TeamResponseDTO result = teamService.updateUserRole(1L, 2L, TeamRole.ADMIN);
+        TeamResponseDTO result = teamService.updateUserRole(team.getId(), user.getId(), TeamRole.ADMIN);
 
         verify(teamMembershipRepository).save(memberToUpdate);
         assertEquals(TeamRole.ADMIN, memberToUpdate.getTeamRole());
@@ -322,21 +322,21 @@ public class TeamServiceTest {
 
         ResourceNotFoundException ex = assertThrows(
                 ResourceNotFoundException.class,
-                () -> teamService.updateUserRole(1L, 2L, TeamRole.ADMIN)
+                () -> teamService.updateUserRole(1L, loggedUser.getId(), TeamRole.ADMIN)
         );
 
         assertEquals("Team not found", ex.getMessage());
     }
 
     @Test
-    void updateUserRoleFails_WhenTeamIsNotInTeam() {
+    void updateUserRoleFails_WhenLoggedUserIsNotInTeam() {
         Team team = createTeam(1L);
         when(teamMembershipRepository.findByTeamAndUser(team, loggedUser))
                 .thenReturn(Optional.empty());
 
         UnauthorizedActionException ex = assertThrows(
                 UnauthorizedActionException.class,
-                () -> teamService.updateUserRole(1L, 2L, TeamRole.MEMBER)
+                () -> teamService.updateUserRole(1L, loggedUser.getId(), TeamRole.MEMBER)
         );
 
         assertEquals("You are not a member of this team", ex.getMessage());
@@ -348,7 +348,7 @@ public class TeamServiceTest {
 
         UnauthorizedActionException ex = assertThrows(
                 UnauthorizedActionException.class,
-                () -> teamService.updateUserRole(1L, 2L, TeamRole.ADMIN)
+                () -> teamService.updateUserRole(team.getId(), loggedUser.getId(), TeamRole.MEMBER)
         );
         assertEquals("Only the owner or admins can update a user role", ex.getMessage());
     }
