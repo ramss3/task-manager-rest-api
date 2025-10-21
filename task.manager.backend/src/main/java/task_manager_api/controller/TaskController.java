@@ -41,6 +41,11 @@ public class TaskController {
         return ResponseEntity.ok(task);
     }
 
+    @GetMapping("/team/{teamId}")
+    public List<TaskResponseDTO> getTasksByTeam(@PathVariable Long teamId) {
+        return taskService.getTasksByTeam(teamId);
+    }
+
     @GetMapping("/search/title/{keyword}")
     public List<TaskSummaryDTO> getTasksByKeywordInTitle(@PathVariable String keyword) {
         return taskService.findByTitle(keyword);

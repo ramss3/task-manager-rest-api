@@ -60,7 +60,7 @@ public class TaskMapper {
 
     public static TaskSummaryDTO toSummaryDTO(Task task) {
         TaskSummaryDTO dto = new TaskSummaryDTO();
-        dto.setId(task.getTeamId());
+        dto.setId(task.getId());
         dto.setTitle(task.getTitle());
         dto.setDescription(task.getDescription());
         dto.setStatus(task.getStatus());

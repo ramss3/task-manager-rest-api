@@ -42,18 +42,18 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        if(dto.getUserTitle() != null) user.setTitle(dto.getUserTitle());
-        if(dto.getFirstName() != null) user.setFirstName(dto.getFirstName());
-        if(dto.getLastName() != null) user.setLastName(dto.getLastName());
-        if(dto.getUsername() != null) user.setUsername(dto.getUsername());
-        if(dto.getEmail() != null) user.setEmail(dto.getEmail());
+        if (dto.getUserTitle() != null) user.setTitle(dto.getUserTitle());
+        if (dto.getFirstName() != null) user.setFirstName(dto.getFirstName());
+        if (dto.getLastName() != null) user.setLastName(dto.getLastName());
+        if (dto.getUsername() != null) user.setUsername(dto.getUsername());
+        if (dto.getEmail() != null) user.setEmail(dto.getEmail());
 
-        if(dto.getCurrentPassword() != null && dto.getNewPassword() != null) {
-            if(!passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword())) {
+        if (dto.getCurrentPassword() != null && dto.getNewPassword() != null) {
+            if (!passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword())) {
                 throw new UnauthorizedActionException("Current password does not match");
             }
 
-            if(passwordEncoder.matches(dto.getNewPassword(), user.getPassword())) {
+            if (passwordEncoder.matches(dto.getNewPassword(), user.getPassword())) {
                 throw new UnauthorizedActionException("New password is the same as the old one");
             }
 
@@ -71,7 +71,7 @@ public class UserService {
     public User getLoggedUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        if(authentication == null || !authentication.isAuthenticated()) {
+        if (authentication == null || !authentication.isAuthenticated()) {
             throw new UnauthorizedActionException("User is not authenticated");
         }
 
@@ -85,4 +85,19 @@ public class UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         return UserMapper.toResponseDTO(user);
     }
+
+    public UserResponseDTO findUserByUsername(String username) {
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        return UserMapper.toResponseDTO(user);
+    }
+
+    public  UserResponseDTO findUserByEmail(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return UserMapper.toResponseDTO(user);
+    }
+
 }

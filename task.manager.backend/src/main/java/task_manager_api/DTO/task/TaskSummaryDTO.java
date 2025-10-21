@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @Builder
 public class TaskSummaryDTO {
 
-    private Long id;
+    private Integer id;
 
     private String title;
 

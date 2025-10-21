@@ -12,8 +12,6 @@ import task_manager_api.model.VerificationToken;
 import task_manager_api.repository.UserRepository;
 import task_manager_api.repository.VerificationTokenRepository;
 import task_manager_api.security.JwtTokenProvider;
-
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service

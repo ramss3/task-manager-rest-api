@@ -488,7 +488,7 @@ public class TeamServiceTest {
 
         UnauthorizedActionException ex = assertThrows(
                 UnauthorizedActionException.class,
-                () -> teamService.removeUserFromTeam(1L, 1L)
+                () -> teamService.removeUserFromTeam(team.getId(), loggedUser.getId())
         );
         assertEquals("Only the owner or admins can delete a user", ex.getMessage());
     }
@@ -496,11 +496,10 @@ public class TeamServiceTest {
     @Test
     void removeUserFails_WhenUserToBeRemovedNotFound() {
         Team team = mockTeamAndLoggedUserMembership(1L, TeamRole.OWNER);
-        when(userRepository.findById(2L)).thenReturn(Optional.empty());
 
         ResourceNotFoundException ex = assertThrows(
                 ResourceNotFoundException.class,
-                () -> teamService.removeUserFromTeam(1L, 2L)
+                () -> teamService.removeUserFromTeam(team.getId(),  2L)
         );
         assertEquals("User not found", ex.getMessage());
     }
@@ -508,7 +507,7 @@ public class TeamServiceTest {
     @Test
     void removeUserFails_WhenUserToBeRemovedIsNotInTeam() {
         Team team = mockTeamAndLoggedUserMembership(1L, TeamRole.OWNER);
-        User user = createUser(1L, "target");
+        User user = createUser(1L, "userNotInTeam");
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
 
         when(teamMembershipRepository.findByTeamAndUser(team, user))
@@ -516,7 +515,7 @@ public class TeamServiceTest {
 
         ResourceNotFoundException ex = assertThrows(
                 ResourceNotFoundException.class,
-                () -> teamService.removeUserFromTeam(1L, 1L)
+                () -> teamService.removeUserFromTeam(team.getId(), user.getId())
         );
         assertEquals("User is not a member of this team", ex.getMessage());
     }
@@ -534,7 +533,7 @@ public class TeamServiceTest {
 
         UnauthorizedActionException ex = assertThrows(
                 UnauthorizedActionException.class,
-                () -> teamService.removeUserFromTeam(1L, 1L)
+                () -> teamService.removeUserFromTeam(team.getId(), user.getId())
         );
         assertEquals("You cannot remove the team owner", ex.getMessage());
     }
@@ -760,7 +759,7 @@ public class TeamServiceTest {
 
         UnauthorizedActionException ex = assertThrows(
                 UnauthorizedActionException.class,
-                () -> teamService.deleteTeam(1L)
+                () -> teamService.deleteTeam(team.getId())
         );
         assertEquals("Only the team owner can delete the team", ex.getMessage());
     }
