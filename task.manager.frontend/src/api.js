@@ -1,4 +1,4 @@
-const BASE_URL = `${import.meta.env.VITE_API_URL || "http://localhost:8080"}/api/tasks`;
+const BASE_URL = `${import.meta.env.VITE_API_URL || "http://localhost:8081"}/api/tasks`;
 
 export async function getTasks() {
     const res = await fetch(BASE_URL);

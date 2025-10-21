@@ -1,0 +1,60 @@
+package task_manager_api.controller;
+
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import task_manager_api.DTO.task.TaskResponseDTO;
+import task_manager_api.DTO.user.UserCreateDTO;
+import task_manager_api.DTO.user.UserResponseDTO;
+import task_manager_api.DTO.user.UserUpdateDTO;
+import task_manager_api.mapper.UserMapper;
+import task_manager_api.model.User;
+import task_manager_api.service.TaskService;
+import task_manager_api.service.UserService;
+
+@RestController
+@RequestMapping("/api/users")
+public class UserController {
+
+    private final UserService userService;
+
+
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
+
+    @PostMapping
+    public ResponseEntity<UserResponseDTO> create(@Valid @RequestBody UserCreateDTO dto) {
+        UserResponseDTO user = userService.createUser(dto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(user);
+    }
+
+
+    @PutMapping("/{id}")
+    public ResponseEntity<UserResponseDTO> update(@PathVariable Long id, @Valid @RequestBody UserUpdateDTO dto) {
+        UserResponseDTO updatedUser = userService.updateUser(id, dto);
+        return ResponseEntity.ok(updatedUser);
+    }
+
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @DeleteMapping("/{id}")
+    public void deleteUser(@PathVariable Long id) {
+        userService.deleteUser(id);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<UserResponseDTO> getUserById(@PathVariable Long id) {
+        UserResponseDTO user = userService.getUserById(id);
+        return ResponseEntity.ok(user);
+    }
+
+    @GetMapping("/profile")
+    public ResponseEntity<UserResponseDTO> getCurrentUser() {
+        User loggedUser = userService.getLoggedUser();
+        UserResponseDTO user = UserMapper.toResponseDTO(loggedUser);
+        return ResponseEntity.ok(user);
+    }
+
+
+}
