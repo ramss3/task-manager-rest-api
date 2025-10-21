@@ -72,11 +72,11 @@ public class TaskControllerTest {
     void getTasksForUser() throws Exception {
         TaskSummaryDTO dto = new TaskSummaryDTO();
         dto.setTitle("First Task");
-        dto.setId(1L);
+        dto.setId(1);
 
         TaskSummaryDTO dto2 = new TaskSummaryDTO();
         dto2.setTitle("Second Task");
-        dto2.setId(2L);
+        dto2.setId(2);
 
         when(taskService.getUserTasks()).thenReturn(List.of(dto, dto2));
 
@@ -105,7 +105,7 @@ public class TaskControllerTest {
     @Test
     void getTasksByKeywordInTitle() throws Exception {
         TaskSummaryDTO dto = new TaskSummaryDTO();
-        dto.setId(1L);
+        dto.setId(1);
         dto.setTitle("First Task");
 
         when(taskService.findByTitle("first")).thenReturn(List.of(dto));
@@ -119,7 +119,7 @@ public class TaskControllerTest {
     @Test
     void getTasksByStatus() throws Exception {
         TaskSummaryDTO dto = new TaskSummaryDTO();
-        dto.setId(1L);
+        dto.setId(1);
         dto.setStatus(Status.COMPLETED);
 
         when(taskService.findByStatus(Status.COMPLETED)).thenReturn(List.of(dto));
