@@ -3,6 +3,7 @@ package task_manager_api.controller;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import task_manager_api.DTO.task.TaskResponseDTO;
 import task_manager_api.DTO.user.UserCreateDTO;
@@ -54,6 +55,17 @@ public class UserController {
         User loggedUser = userService.getLoggedUser();
         UserResponseDTO user = UserMapper.toResponseDTO(loggedUser);
         return ResponseEntity.ok(user);
+    }
+
+    @GetMapping("/{username}")
+    @PreAuthorize("isAuthenticated()")
+    public UserResponseDTO findUserByUsername(@PathVariable String username) {
+        return userService.findUserByUsername(username);
+    }
+
+    @GetMapping("/user/{email}")
+    public UserResponseDTO findUserByEmail(@PathVariable String email) {
+        return userService.findUserByEmail(email);
     }
 
 

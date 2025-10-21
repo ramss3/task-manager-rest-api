@@ -87,6 +87,22 @@ public class TaskService {
         return TaskMapper.toResponseDTO(task);
     }
 
+    public List<TaskResponseDTO> getTasksByTeam(Long teamId) {
+        User user = userService.getLoggedUser();
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new ResourceNotFoundException("Team not found with id" + teamId));
+        boolean isMember = teamMembershipRepository.existsByTeamAndUser(team, user);
+
+        if(!isMember) {
+            throw new UnauthorizedActionException("You are not allowed to visualise tasks from teams you are not part with");
+        }
+
+        List<Task> tasks = tasksRepository.findByTeam(team);
+
+        return TaskMapper.toResponseDTOlist(tasks);
+
+    }
+
     public TaskResponseDTO updateTask(Integer id, TaskUpdateDTO dto) {
 
         User user = userService.getLoggedUser();
@@ -96,7 +112,7 @@ public class TaskService {
         unAuthorizationActionVerificationAuthorization(task, user);
 
         TaskMapper.updateEntity(task, dto);
-        Task updated = tasksRepository.save(task);
+        tasksRepository.save(task);
 
         return TaskMapper.toResponseDTO(task);
     }
