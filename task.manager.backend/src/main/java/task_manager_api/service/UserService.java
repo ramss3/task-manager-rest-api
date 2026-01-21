@@ -14,6 +14,8 @@ import task_manager_api.mapper.UserMapper;
 import task_manager_api.model.User;
 import task_manager_api.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import task_manager_api.security.UserPrincipal;
+
 import java.util.*;
 
 @Service
@@ -28,6 +30,7 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
+    // --- Create ---
     public UserResponseDTO createUser(UserCreateDTO dto) {
         User user = new User();
         user.setTitle(dto.getUserTitle());
@@ -41,57 +44,18 @@ public class UserService {
         return UserMapper.toResponseDTO(user);
     }
 
-    public UserResponseDTO updateUser(Long id, UserUpdateDTO dto) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        if (dto.getUserTitle() != null) user.setTitle(dto.getUserTitle());
-        if (dto.getFirstName() != null) user.setFirstName(dto.getFirstName());
-        if (dto.getLastName() != null) user.setLastName(dto.getLastName());
-        if (dto.getUsername() != null) user.setUsername(dto.getUsername());
-        if (dto.getEmail() != null) user.setEmail(dto.getEmail());
-
-        if (dto.getCurrentPassword() != null && dto.getNewPassword() != null) {
-            if (!passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword())) {
-                throw new UnauthorizedActionException("Current password does not match");
-            }
-
-            if (passwordEncoder.matches(dto.getNewPassword(), user.getPassword())) {
-                throw new UnauthorizedActionException("New password is the same as the old one");
-            }
-
-            user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
-        }
-
-        userRepository.save(user);
-        return UserMapper.toResponseDTO(user);
-    }
-
-    public void deleteUser(Long id) {
-        User loggedUSer = getLoggedUser();
-
-        User userToDelete = userRepository.findById(id)
-                        .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        boolean isOwner = loggedUSer.getId().equals(userToDelete.getId());
-
-        if(!isOwner) {
-            throw new UnauthorizedActionException("You are not allowed to delete other user");
-        }
-
-        userRepository.delete(userToDelete);
-    }
-
+    // --- Read ---
     public User getLoggedUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new UnauthorizedActionException("User is not authenticated");
+        if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal principal) {
+
+            // FAST: Get user directly by ID
+            return userRepository.findById(principal.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Logged user not found"));
         }
 
-        String username = authentication.getName();
-        return userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        throw new UnauthorizedActionException("User is not authenticated");
     }
 
     public UserResponseDTO getUserById(Long id) {
@@ -123,4 +87,41 @@ public class UserService {
                 .toList();
     }
 
+    // --- Update ---
+    public UserResponseDTO updateUser(Long id, UserUpdateDTO dto) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (dto.getUserTitle() != null) user.setTitle(dto.getUserTitle());
+        if (dto.getFirstName() != null) user.setFirstName(dto.getFirstName());
+        if (dto.getLastName() != null) user.setLastName(dto.getLastName());
+        if (dto.getUsername() != null) user.setUsername(dto.getUsername());
+        if (dto.getEmail() != null) user.setEmail(dto.getEmail());
+
+        if (dto.getCurrentPassword() != null && dto.getNewPassword() != null) {
+            if (!passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword())) {
+                throw new UnauthorizedActionException("Current password does not match");
+            }
+
+            if (passwordEncoder.matches(dto.getNewPassword(), user.getPassword())) {
+                throw new UnauthorizedActionException("New password is the same as the old one");
+            }
+
+            user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
+        }
+
+        userRepository.save(user);
+        return UserMapper.toResponseDTO(user);
+    }
+
+    // --- Delete ---
+    public void deleteUser(Long id) {
+        User loggedUser = getLoggedUser();
+
+        if (!loggedUser.getId().equals(id)) {
+            throw new UnauthorizedActionException("You are not allowed to delete another user's account");
+        }
+
+        userRepository.delete(loggedUser);
+    }
 }

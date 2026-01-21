@@ -94,7 +94,7 @@ public class TaskService {
         boolean isMember = teamMembershipRepository.existsByTeamAndUser(team, user);
 
         if(!isMember) {
-            throw new UnauthorizedActionException("You are not allowed to visualise tasks from teams you are not part with");
+            throw new UnauthorizedActionException("You are not allowed to visualise tasks from teams you are not part");
         }
 
         List<Task> tasks = tasksRepository.findByTeam(team);

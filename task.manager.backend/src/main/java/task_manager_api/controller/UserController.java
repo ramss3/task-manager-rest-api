@@ -25,37 +25,26 @@ public class UserController {
         this.userService = userService;
     }
 
+
+    // --- Create ---
     @PostMapping
     public ResponseEntity<UserResponseDTO> create(@Valid @RequestBody UserCreateDTO dto) {
         UserResponseDTO user = userService.createUser(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(user);
     }
 
-
-    @PutMapping("/{id}")
-    public ResponseEntity<UserResponseDTO> update(@PathVariable Long id, @Valid @RequestBody UserUpdateDTO dto) {
-        UserResponseDTO updatedUser = userService.updateUser(id, dto);
-        return ResponseEntity.ok(updatedUser);
-    }
-
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("isAuthenticated()")
-    @DeleteMapping("/{id}")
-    public void deleteUser(@PathVariable Long id) {
-        userService.deleteUser(id);
-    }
-
-    @GetMapping("/id/{id}")
-    public ResponseEntity<UserResponseDTO> getUserById(@PathVariable Long id) {
-        UserResponseDTO user = userService.getUserById(id);
-        return ResponseEntity.ok(user);
-    }
-
+    // --- Update ---
     @GetMapping("/profile")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<UserResponseDTO> getCurrentUser() {
         User loggedUser = userService.getLoggedUser();
         UserResponseDTO user = UserMapper.toResponseDTO(loggedUser);
+        return ResponseEntity.ok(user);
+    }
+
+    @GetMapping("/id/{id}")
+    public ResponseEntity<UserResponseDTO> getUserById(@PathVariable Long id) {
+        UserResponseDTO user = userService.getUserById(id);
         return ResponseEntity.ok(user);
     }
 
@@ -75,5 +64,26 @@ public class UserController {
         List<TeamResponseDTO> teams = userService.getUserTeams(id);
         return ResponseEntity.ok(teams);
     }
+
+
+    // --- Update ---
+    @PutMapping("/{id}")
+    @PreAuthorize("isAuthenticated() and (principal.id == #id)")
+    public ResponseEntity<UserResponseDTO> update(@PathVariable Long id, @Valid @RequestBody UserUpdateDTO dto) {
+        UserResponseDTO updatedUser = userService.updateUser(id, dto);
+        return ResponseEntity.ok(updatedUser);
+    }
+
+    // --- Delete ---
+    @PreAuthorize("isAuthenticated() and (principal.id == #id)")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
+        userService.deleteUser(id);
+        return ResponseEntity.noContent().build();
+    }
+
+
+
+
 
 }
