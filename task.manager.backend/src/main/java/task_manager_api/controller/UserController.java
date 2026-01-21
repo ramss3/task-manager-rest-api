@@ -5,14 +5,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import task_manager_api.DTO.task.TaskResponseDTO;
 import task_manager_api.DTO.team.TeamResponseDTO;
 import task_manager_api.DTO.user.UserCreateDTO;
 import task_manager_api.DTO.user.UserResponseDTO;
 import task_manager_api.DTO.user.UserUpdateDTO;
 import task_manager_api.mapper.UserMapper;
 import task_manager_api.model.User;
-import task_manager_api.service.TaskService;
 import task_manager_api.service.UserService;
 import java.util.*;
 
