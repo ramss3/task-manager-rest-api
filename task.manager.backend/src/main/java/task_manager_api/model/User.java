@@ -58,7 +58,6 @@ public class User {
         this.createdAt = LocalDateTime.now();
     }
 
-    @Transient
     public List<Team> getUserTeams() {
         return userTeams.stream()
                 .map(TeamMembership::getTeam)

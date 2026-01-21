@@ -3,15 +3,18 @@ package task_manager_api.service;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import task_manager_api.DTO.team.TeamResponseDTO;
 import task_manager_api.DTO.user.UserCreateDTO;
 import task_manager_api.DTO.user.UserResponseDTO;
 import task_manager_api.DTO.user.UserUpdateDTO;
 import task_manager_api.exceptions.ResourceNotFoundException;
 import task_manager_api.exceptions.UnauthorizedActionException;
+import task_manager_api.mapper.TeamMapper;
 import task_manager_api.mapper.UserMapper;
 import task_manager_api.model.User;
 import task_manager_api.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import java.util.*;
 
 @Service
 public class UserService {
@@ -65,7 +68,18 @@ public class UserService {
     }
 
     public void deleteUser(Long id) {
-        userRepository.deleteById(id);
+        User loggedUSer = getLoggedUser();
+
+        User userToDelete = userRepository.findById(id)
+                        .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        boolean isOwner = loggedUSer.getId().equals(userToDelete.getId());
+
+        if(!isOwner) {
+            throw new UnauthorizedActionException("You are not allowed to delete other user");
+        }
+
+        userRepository.delete(userToDelete);
     }
 
     public User getLoggedUser() {
@@ -98,6 +112,15 @@ public class UserService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         return UserMapper.toResponseDTO(user);
+    }
+
+    public List<TeamResponseDTO> getUserTeams(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return user.getUserTeams()
+                .stream()
+                .map(TeamMapper::toResponseDTO)
+                .toList();
     }
 
 }
