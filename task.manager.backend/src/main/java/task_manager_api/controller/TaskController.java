@@ -1,6 +1,7 @@
 package task_manager_api.controller;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import task_manager_api.DTO.task.TaskCreateDTO;
 import task_manager_api.DTO.task.TaskResponseDTO;
 import task_manager_api.DTO.task.TaskSummaryDTO;
@@ -15,6 +16,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/tasks")
+@PreAuthorize("isAuthenticated()")
 public class TaskController {
 
     private final TaskService taskService;

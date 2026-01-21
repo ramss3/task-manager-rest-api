@@ -72,7 +72,7 @@ public class AuthService {
             throw new RuntimeException("Invalid credentials");
         }
 
-        return jwtTokenProvider.generateToken(user.getUsername());
+        return jwtTokenProvider.generateToken(user.getId());
     }
 
     public void verifyAccount(String token) {

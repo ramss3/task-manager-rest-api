@@ -24,25 +24,26 @@ public class JwtTokenProvider {
         this.jwtExpirationMs = jwtExpirationMs;
     }
 
-    public String generateToken(String username) {
+    public String generateToken(Long userId) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpirationMs);
 
         return Jwts.builder()
-                .setSubject(username)
+                .setSubject(String.valueOf(userId))
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)
                 .signWith(jwtSecret, SignatureAlgorithm.HS256)
                 .compact();
     }
 
-    public String getUsernameFromToken(String token) {
-        return Jwts.parserBuilder()
+    public Long getUserIdFromToken(String token) {
+        String subject = Jwts.parserBuilder()
                 .setSigningKey(jwtSecret)
                 .build()
                 .parseClaimsJws(token)
                 .getBody()
                 .getSubject();
+        return Long.parseLong(subject);
     }
 
     public boolean validateToken(String token) {
