@@ -52,12 +52,12 @@ public class TaskService {
         }
     }
 
-    public TaskResponseDTO createTask(TaskCreateDTO dto) {
+    public TaskResponseDTO createTask(TaskCreateDTO newTask) {
         User user = userService.getLoggedUser();
         Team team = null;
 
-        if(dto.getTeamId() != null) {
-            team = teamRepository.findById(dto.getTeamId())
+        if(newTask.getTeamId() != null) {
+            team = teamRepository.findById(newTask.getTeamId())
                     .orElseThrow(() -> new ResourceNotFoundException("Team not found"));
 
             if (!teamMembershipRepository.existsByTeamAndUser(team, user)) {
@@ -65,7 +65,7 @@ public class TaskService {
             }
         }
 
-        Task task = TaskMapper.toEntity(dto, user, team);
+        Task task = TaskMapper.toEntity(newTask, user, team);
         Task saved = tasksRepository.save(task);
 
         return TaskMapper.toResponseDTO(saved);

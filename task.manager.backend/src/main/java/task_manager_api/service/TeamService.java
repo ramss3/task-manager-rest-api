@@ -140,7 +140,7 @@ public class TeamService {
 
     public TeamResponseDTO removeUserFromTeam(Long teamId, Long userId) {
         User currUser = userService.getLoggedUser();
-        //find user and team based on id
+
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new ResourceNotFoundException("Team not found"));
 
