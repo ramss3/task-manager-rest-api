@@ -23,6 +23,9 @@ target/
 *.env
 docker/env.env
 
+task.manager.backend/src/main/resources/application.properties
+
+
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/
