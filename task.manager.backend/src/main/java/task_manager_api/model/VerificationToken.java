@@ -25,6 +25,8 @@ public class VerificationToken {
 
     private boolean used;
 
+    protected VerificationToken() {}
+
     public VerificationToken(String token, User user) {
         this.token = token;
         this.user = user;
