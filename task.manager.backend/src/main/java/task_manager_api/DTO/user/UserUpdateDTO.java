@@ -1,14 +1,16 @@
 package task_manager_api.DTO.user;
 
-import jakarta.persistence.Column;
-import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 import task_manager_api.model.UserTitle;
-import task_manager_api.validation.NewPasswordMatches;
+import task_manager_api.validation.PasswordMatches;
 
 @Getter
 @Setter
-@NewPasswordMatches
+@PasswordMatches(
+        password = "newPassword",
+        confirmPassword = "confirmNewPassword",
+        message = "New password and confirmation do not match"
+)
 public class UserUpdateDTO {
 
     private UserTitle userTitle;

@@ -2,7 +2,6 @@ package task_manager_api.DTO.user;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,7 +14,10 @@ import task_manager_api.validation.PasswordMatches;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@PasswordMatches
+@PasswordMatches(
+        password = "password",
+        confirmPassword = "confirmPassword"
+)
 public class UserCreateDTO {
 
     private UserTitle userTitle;

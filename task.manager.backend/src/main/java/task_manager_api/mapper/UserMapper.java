@@ -1,9 +1,7 @@
 package task_manager_api.mapper;
 
 import task_manager_api.DTO.team.UserMemberDTO;
-import task_manager_api.DTO.user.UserCreateDTO;
 import task_manager_api.DTO.user.UserResponseDTO;
-import task_manager_api.DTO.user.UserUpdateDTO;
 import task_manager_api.model.TeamRole;
 import task_manager_api.model.User;
 

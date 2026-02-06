@@ -2,7 +2,6 @@ package task_manager_api.DTO.team;
 
 import lombok.*;
 import task_manager_api.DTO.task.TaskSummaryDTO;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;

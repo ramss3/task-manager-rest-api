@@ -1,6 +1,5 @@
 package task_manager_api.DTO.task;
 
-import jakarta.persistence.Column;
 import jakarta.persistence.Transient;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

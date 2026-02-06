@@ -4,11 +4,7 @@ import task_manager_api.DTO.task.TaskSummaryDTO;
 import task_manager_api.DTO.team.TeamResponseDTO;
 import task_manager_api.DTO.team.UserMemberDTO;
 import task_manager_api.model.Team;
-import task_manager_api.model.TeamMembership;
-import task_manager_api.model.TeamRole;
-
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class TeamMapper {
 
