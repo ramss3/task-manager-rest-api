@@ -19,11 +19,12 @@ target/
 *.iml
 *.ipr
 
+.env.production
 .env
 *.env
 docker/env.env
 
-task.manager.backend/src/main/resources/application.properties
+src/main/resources/application.properties
 
 
 ### NetBeans ###
