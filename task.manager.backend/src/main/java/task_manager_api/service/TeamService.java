@@ -1,11 +1,14 @@
 package task_manager_api.service;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import task_manager_api.DTO.task.TaskSummaryDTO;
 import task_manager_api.DTO.team.TeamCreateDTO;
 import task_manager_api.DTO.team.TeamResponseDTO;
 import task_manager_api.DTO.team.TeamUpdateDTO;
 import task_manager_api.DTO.team.UserMemberDTO;
+import task_manager_api.exceptions.ConflictException;
 import task_manager_api.exceptions.ResourceNotFoundException;
 import task_manager_api.exceptions.UnauthorizedActionException;
 import task_manager_api.mapper.TaskMapper;
@@ -21,6 +24,7 @@ import java.util.List;
 
 
 @Service
+@RequiredArgsConstructor
 public class TeamService {
 
     private final TeamRepository teamRepository;
@@ -28,150 +32,129 @@ public class TeamService {
     private final TasksRepository tasksRepository;
     private final TeamMembershipRepository teamMembershipRepository;
     private final UserService userService;
+    private final UserLookupService userLookupService;
+    private final TeamMembershipPolicy membershipPolicy;
 
-    public TeamService(TeamRepository teamRepository,
-                       UserRepository userRepository,
-                       TasksRepository tasksRepository,
-                       TeamMembershipRepository teamMembershipRepository,
-                       UserService userService) {
-        this.teamRepository = teamRepository;
-        this.userRepository = userRepository;
-        this.tasksRepository = tasksRepository;
-        this.teamMembershipRepository = teamMembershipRepository;
-        this.userService = userService;
-    }
-
+    // --- Team ---
+    @Transactional
     public TeamResponseDTO createTeam(TeamCreateDTO dto) {
         // When creating a team the creator automatically integrates the team
-        User user = userService.getLoggedUser();
+        User user = requireLoggedUser();
+
         Team team = new Team();
         team.setName(dto.getTeamName());
-
         Team createdTeam = teamRepository.save(team);
 
-        TeamMembership ownerMembership = new TeamMembership();
-        ownerMembership.setTeam(createdTeam);
-        ownerMembership.setUser(user);
-        ownerMembership.setTeamRole(TeamRole.OWNER);
-
-        teamMembershipRepository.save(ownerMembership);
+        TeamMembership ownerMembership = createMembership(createdTeam, user, TeamRole.OWNER);
         createdTeam.getMemberships().add(ownerMembership);
-
         return TeamMapper.toResponseDTO(createdTeam);
     }
 
     public List<TeamResponseDTO> getAllTeamsForUser() {
-        User user = userService.getLoggedUser();
-        return teamMembershipRepository.findByUser(user)
+        return teamMembershipRepository.findByUser(requireLoggedUser())
                 .stream()
                 .map(TeamMembership::getTeam)
                 .map(TeamMapper::toResponseDTO)
                 .toList();
     }
 
-    public TeamResponseDTO addUserToTeam(Long teamId, Long userId, TeamRole role) {
-        User currUser = userService.getLoggedUser();
-        Team team = teamRepository.findById(teamId)
-                .orElseThrow(() -> new ResourceNotFoundException("Team not found"));
+    @Transactional
+    public TeamResponseDTO updateTeam(Long teamId, TeamUpdateDTO updatedTeam) {
+        User loggedUser = requireLoggedUser();
+        Team team = requireTeam(teamId);
 
-        TeamMembership loggedMembership = teamMembershipRepository.findByTeamAndUser(team, currUser)
-                .orElseThrow(() -> new UnauthorizedActionException("You are not a member of this team"));
+        TeamMembership membership = requireMembership(team, loggedUser);
+        requireOwner(membership, "Only the owner can update the team");
 
-        if(loggedMembership.getTeamRole() == TeamRole.MEMBER) {
-            throw new UnauthorizedActionException("Only the owner or admins can add new user to the team");
-        }
+        team.setName(updatedTeam.getTeamName());
+        return TeamMapper.toResponseDTO(teamRepository.save(team));
+    }
 
-        if(loggedMembership.getTeamRole() == TeamRole.ADMIN && role == TeamRole.OWNER) {
+    @Transactional
+    public void deleteTeam(Long teamId) {
+        User loggedUser = requireLoggedUser();
+        Team team = requireTeam(teamId);
+
+        TeamMembership membership = requireMembership(team, loggedUser);
+        requireOwner(membership, "Only the team owner can delete the team");
+
+        teamMembershipRepository.deleteAllByTeam(team);
+        teamRepository.delete(team);
+    }
+
+    // Team members
+    @Transactional
+    public TeamResponseDTO addUserToTeam(Long teamId, String identifier, TeamRole role) {
+        User currUser = requireLoggedUser();
+        Team team = requireTeam(teamId);
+
+        TeamMembership loggedMembership = requireMembership(team, currUser);
+        membershipPolicy.requireCanManageMembers(loggedMembership, "Only the owner or admins can add new user to the team");
+
+        TeamRole desiredRole = role != null ? role : TeamRole.MEMBER;
+
+        if(!loggedMembership.getTeamRole().isOwner() && desiredRole.isOwner()) {
             throw new UnauthorizedActionException("Only the owner can assign a new owner");
         }
 
-        User newUser = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        User newUser = userLookupService.searchByIdentifier(identifier);
 
         if(teamMembershipRepository.existsByTeamAndUser(team, newUser)) {
-            throw new IllegalArgumentException("User is already in the team");
+            throw new ConflictException("User is already in the team");
         }
 
-        TeamMembership teamMembership = new TeamMembership();
-        teamMembership.setTeam(team);
-        teamMembership.setUser(newUser);
-        teamMembership.setTeamRole(role != null ? role : TeamRole.MEMBER);
-
-        teamMembershipRepository.save(teamMembership);
+        TeamMembership teamMembership = createMembership(team, newUser, desiredRole);
         team.getMemberships().add(teamMembership);
         teamRepository.save(team);
-
         return TeamMapper.toResponseDTO(team);
     }
 
+    @Transactional
     public TeamResponseDTO updateUserRole(Long teamId, Long userId, TeamRole newRole) {
-        User currUser = userService.getLoggedUser();
-        Team team = teamRepository.findById(teamId)
-                .orElseThrow(() -> new ResourceNotFoundException("Team not found"));
+        if(newRole == null) throw new ConflictException("New role cannot be null");
 
-        TeamMembership loggedMembership = teamMembershipRepository.findByTeamAndUser(team, currUser)
-                .orElseThrow(() -> new UnauthorizedActionException("You are not a member of this team"));
+        User currUser = requireLoggedUser();
+        Team team = requireTeam(teamId);
 
-        if(loggedMembership.getTeamRole() == TeamRole.MEMBER) {
-            throw new UnauthorizedActionException("Only the owner or admins can update a user role");
-        }
+        TeamMembership loggedMembership = requireMembership(team, currUser);
+        membershipPolicy.requireCanManageMembers(loggedMembership,
+                "Only the owner or admins can update a user role");
 
-        User userToUpdate = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        User userToUpdate = requireUser(userId);
+        TeamMembership membershipToUpdate = requireMembership(team, userToUpdate);
 
-        TeamMembership membershipToUpdate = teamMembershipRepository.findByTeamAndUser(team, userToUpdate)
-                .orElseThrow(() -> new UnauthorizedActionException("The desired user is not a member of this team"));
-
-        if((loggedMembership.getTeamRole() == TeamRole.ADMIN
-                && newRole == TeamRole.OWNER)
-                || (membershipToUpdate.getTeamRole() == TeamRole.OWNER
-                && loggedMembership.getTeamRole() != TeamRole.OWNER)) {
-            throw new UnauthorizedActionException("Only the owner can modify ownership role");
-        }
-
-        if(loggedMembership.getTeamRole() == TeamRole.OWNER && currUser.equals(userToUpdate) && newRole != TeamRole.OWNER) {
-            throw new UnauthorizedActionException("Owner cannot demote themselves");
-        }
+        membershipPolicy.validateRoleChange(currUser, loggedMembership, userToUpdate, membershipToUpdate, newRole);
 
         membershipToUpdate.setTeamRole(newRole);
         teamMembershipRepository.save(membershipToUpdate);
         return TeamMapper.toResponseDTO(team);
     }
 
-    public TeamResponseDTO removeUserFromTeam(Long teamId, Long userId) {
-        User currUser = userService.getLoggedUser();
+    @Transactional
+    public void removeUserFromTeam(Long teamId, Long userId) {
+        User currUser = requireLoggedUser();
+        Team team = requireTeam(teamId);
 
-        Team team = teamRepository.findById(teamId)
-                .orElseThrow(() -> new ResourceNotFoundException("Team not found"));
+        TeamMembership loggedMembership = requireMembership(team, currUser);
+        membershipPolicy.requireCanManageMembers(loggedMembership, "Only the owner or admins can delete a user");
 
+        User targetUser  = requireUser(userId);
+        TeamMembership targetMembership = requireMembership(team, targetUser);
 
-        TeamMembership loggedMembership = teamMembershipRepository.findByTeamAndUser(team, currUser)
-                .orElseThrow(() -> new UnauthorizedActionException("You are not a member of this team"));
-
-        if(loggedMembership.getTeamRole() == TeamRole.MEMBER) {
-            throw new UnauthorizedActionException("Only the owner or admins can delete a user");
-        }
-
-        User userToBeRemoved = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        TeamMembership membership = teamMembershipRepository.findByTeamAndUser(team, userToBeRemoved)
-                .orElseThrow(() -> new ResourceNotFoundException("User is not a member of this team"));
-
-        if (membership.getTeamRole() == TeamRole.OWNER) {
+        if (targetMembership.getTeamRole().isOwner()) {
             throw new UnauthorizedActionException("You cannot remove the team owner");
         }
 
-        teamMembershipRepository.delete(membership);
-        team.getMemberships().remove(membership);
+        teamMembershipRepository.delete(targetMembership);
+        team.getMemberships().remove(targetMembership);
         teamRepository.save(team);
-
-        return TeamMapper.toResponseDTO(team);
     }
 
     public List<UserMemberDTO> getTeamMembers(Long teamId) {
-        Team team = teamRepository.findById(teamId)
-                .orElseThrow(() -> new ResourceNotFoundException("Team not found"));
+        User currUser = requireLoggedUser();
+        Team team = requireTeam(teamId);
+
+        requireMembership(team, currUser);
 
         return teamMembershipRepository.findByTeam(team)
                 .stream()
@@ -179,46 +162,49 @@ public class TeamService {
                 .toList();
     }
 
+    // Tasks
     public List<TaskSummaryDTO> getTeamTasks(Long teamId) {
-        Team team = teamRepository.findById(teamId)
-                .orElseThrow(() -> new ResourceNotFoundException("Team not found"));
+        User currUser = requireLoggedUser();
+        Team team = requireTeam(teamId);
 
+        requireMembership(team, currUser);
         return tasksRepository.findByTeam(team)
                 .stream()
                 .map(TaskMapper::toSummaryDTO)
                 .toList();
     }
 
-    public TeamResponseDTO updateTeam(Long teamId, TeamUpdateDTO updatedTeam) {
-        User loggedUser = userService.getLoggedUser();
-        Team team = teamRepository.findById(teamId)
-                .orElseThrow(() -> new ResourceNotFoundException("Team not found"));
-
-        TeamMembership membership = teamMembershipRepository.findByTeamAndUser(team, loggedUser)
-                .orElseThrow(() -> new UnauthorizedActionException("You are not a member of the team"));
-
-        if(membership.getTeamRole() != TeamRole.OWNER) {
-            throw new UnauthorizedActionException("Only the owner can update the team");
-        }
-
-        team.setName(updatedTeam.getTeamName());
-
-        return TeamMapper.toResponseDTO(teamRepository.save(team));
+    // Helpers
+    private User requireLoggedUser() {
+        return userService.getLoggedUser();
     }
 
-    public void deleteTeam(Long teamId) {
-        User currUser = userService.getLoggedUser();
-        Team team = teamRepository.findById(teamId)
+    private Team requireTeam(Long teamId) {
+        return teamRepository.findById(teamId)
                 .orElseThrow(() -> new ResourceNotFoundException("Team not found"));
+    }
 
-        TeamMembership membership = teamMembershipRepository.findByTeamAndUser(team, currUser)
-                .orElseThrow(() -> new UnauthorizedActionException("You are not a member of the team"));
+    private User requireUser(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    }
 
-        if(membership.getTeamRole() != TeamRole.OWNER) {
-            throw new UnauthorizedActionException("Only the team owner can delete the team");
+    private TeamMembership requireMembership(Team team, User user) {
+        return teamMembershipRepository.findByTeamAndUser(team, user)
+                .orElseThrow(() -> new UnauthorizedActionException("You are not a member of this team"));
+    }
+
+    private void requireOwner(TeamMembership membership, String msg) {
+        if (!membership.getTeamRole().isOwner()) {
+            throw new UnauthorizedActionException(msg);
         }
+    }
 
-        teamMembershipRepository.deleteAllByTeam(team);
-        teamRepository.delete(team);
+    private TeamMembership createMembership(Team team, User user, TeamRole role) {
+        TeamMembership membership = new TeamMembership();
+        membership.setTeam(team);
+        membership.setUser(user);
+        membership.setTeamRole(role);
+        return teamMembershipRepository.save(membership);
     }
 }

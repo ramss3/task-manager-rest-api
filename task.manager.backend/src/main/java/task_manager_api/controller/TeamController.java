@@ -6,10 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import task_manager_api.DTO.task.TaskSummaryDTO;
-import task_manager_api.DTO.team.TeamCreateDTO;
-import task_manager_api.DTO.team.TeamResponseDTO;
-import task_manager_api.DTO.team.TeamUpdateDTO;
-import task_manager_api.DTO.team.UserMemberDTO;
+import task_manager_api.DTO.team.*;
 import task_manager_api.model.*;
 import task_manager_api.service.TeamService;
 import java.util.List;
@@ -33,11 +30,11 @@ public class TeamController {
         return ResponseEntity.status(HttpStatus.CREATED).body(teamResponseDTO);
     }
 
-    @PostMapping("/{teamId}/users/{userId}")
+    @PostMapping("/{teamId}/members")
     public ResponseEntity<TeamResponseDTO> addUserToTeam(@PathVariable Long teamId,
-                                                         @PathVariable Long userId,
+                                                         @Valid @RequestBody AddTeamMemberDTO memberDTO,
                                                          @RequestParam(defaultValue = "MEMBER")TeamRole role) {
-        TeamResponseDTO team = teamService.addUserToTeam(teamId, userId, role);
+        TeamResponseDTO team = teamService.addUserToTeam(teamId, memberDTO.getIdentifier(), role);
         return ResponseEntity.ok(team);
     }
 
@@ -48,12 +45,14 @@ public class TeamController {
         return ResponseEntity.ok(teams);
     }
 
+    // so deve ter acesso aqui quem fizer parte da equipa
     @GetMapping("/{teamId}/members")
     public ResponseEntity<List<UserMemberDTO>> getTeamMembers(@PathVariable Long teamId) {
         List<UserMemberDTO> members = teamService.getTeamMembers(teamId);
         return ResponseEntity.ok(members);
     }
 
+    // so deve ter acesso aqui quem fizer parte da equipa
     @GetMapping("/{teamId}/tasks")
     public ResponseEntity<List<TaskSummaryDTO>> getTeamTasks(@PathVariable Long teamId) {
         List<TaskSummaryDTO> tasks = teamService.getTeamTasks(teamId);

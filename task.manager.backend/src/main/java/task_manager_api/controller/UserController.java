@@ -33,7 +33,7 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.CREATED).body(user);
     }
 
-    // --- Update ---
+    // --- Read ---
     @GetMapping("/profile")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<UserResponseDTO> getCurrentUser() {
@@ -42,29 +42,23 @@ public class UserController {
         return ResponseEntity.ok(user);
     }
 
-    @GetMapping("/id/{id}")
-    public ResponseEntity<UserResponseDTO> getUserById(@PathVariable Long id) {
-        UserResponseDTO user = userService.getUserById(id);
-        return ResponseEntity.ok(user);
-    }
-
     @GetMapping("/username/{username}")
     @PreAuthorize("isAuthenticated()")
     public UserResponseDTO findUserByUsername(@PathVariable String username) {
-        return userService.findUserByUsername(username);
+        return userService.getUserByUsername(username);
     }
 
-    @GetMapping("/user/{email}")
+    @GetMapping("/username/{username}/teams")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<TeamResponseDTO>> getUserTeams(@PathVariable String username) {
+        return ResponseEntity.ok(userService.getUserTeams(username));
+    }
+
+    @GetMapping(params = "email")
+    @PreAuthorize("isAuthenticated()")
     public UserResponseDTO findUserByEmail(@PathVariable String email) {
         return userService.findUserByEmail(email);
     }
-
-    @GetMapping("/{id}/teams")
-    public ResponseEntity<List<TeamResponseDTO>> getUserTeams(@PathVariable Long id) {
-        List<TeamResponseDTO> teams = userService.getUserTeams(id);
-        return ResponseEntity.ok(teams);
-    }
-
 
     // --- Update ---
     @PutMapping("/{id}")
@@ -81,9 +75,4 @@ public class UserController {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
     }
-
-
-
-
-
 }

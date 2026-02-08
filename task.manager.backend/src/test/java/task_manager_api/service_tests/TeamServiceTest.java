@@ -210,7 +210,7 @@ public class TeamServiceTest {
 
         when(teamRepository.save(team)).thenReturn(team);
 
-        TeamResponseDTO result = teamService.addUserToTeam(1L, 2L, TeamRole.MEMBER);
+        TeamResponseDTO result = teamService.addUserToTeam(1L, "newUser", TeamRole.MEMBER);
 
         assertNotNull(result);
         verify(teamMembershipRepository).save(any(TeamMembership.class));
@@ -223,7 +223,7 @@ public class TeamServiceTest {
 
         ResourceNotFoundException ex = assertThrows(
                 ResourceNotFoundException.class,
-                () -> teamService.addUserToTeam(1L, 2L, TeamRole.MEMBER)
+                () -> teamService.addUserToTeam(1L, "newUser", TeamRole.MEMBER)
         );
 
         assertEquals("Team not found", ex.getMessage());
@@ -236,7 +236,7 @@ public class TeamServiceTest {
 
         UnauthorizedActionException ex = assertThrows(
                 UnauthorizedActionException.class,
-                () -> teamService.addUserToTeam(5L, 2L, TeamRole.MEMBER)
+                () -> teamService.addUserToTeam(5L, "newUser", TeamRole.MEMBER)
         );
 
         assertEquals("You are not a member of this team", ex.getMessage());
@@ -248,7 +248,7 @@ public class TeamServiceTest {
 
         UnauthorizedActionException ex = assertThrows(
                 UnauthorizedActionException.class,
-                () -> teamService.addUserToTeam(1L, 2L, TeamRole.MEMBER)
+                () -> teamService.addUserToTeam(1L, "newUser", TeamRole.MEMBER)
         );
 
         assertEquals("Only the owner or admins can add new user to the team", ex.getMessage());
@@ -260,7 +260,7 @@ public class TeamServiceTest {
 
         UnauthorizedActionException ex = assertThrows(
                 UnauthorizedActionException.class,
-                () -> teamService.addUserToTeam(1L, 2L, TeamRole.OWNER)
+                () -> teamService.addUserToTeam(1L, "newUser", TeamRole.OWNER)
         );
 
         assertEquals("Only the owner can assign a new owner", ex.getMessage());
@@ -274,7 +274,7 @@ public class TeamServiceTest {
 
         ResourceNotFoundException ex = assertThrows(
                 ResourceNotFoundException.class,
-                () -> teamService.addUserToTeam(1L, 2L, TeamRole.MEMBER)
+                () -> teamService.addUserToTeam(1L, "newUser", TeamRole.MEMBER)
         );
 
         assertEquals("User not found", ex.getMessage());
@@ -289,7 +289,7 @@ public class TeamServiceTest {
 
         IllegalArgumentException ex = assertThrows(
                 IllegalArgumentException.class,
-                () -> teamService.addUserToTeam(1L, 2L, TeamRole.MEMBER)
+                () -> teamService.addUserToTeam(1L, "newUser", TeamRole.MEMBER)
         );
 
         assertEquals("User is already in the team", ex.getMessage());
@@ -450,9 +450,8 @@ public class TeamServiceTest {
         when(teamMembershipRepository.findByTeamAndUser(team, userToBeRemoved))
             .thenReturn(Optional.of(membership));
 
-        TeamResponseDTO result = teamService.removeUserFromTeam(1L, 1L);
+        teamService.removeUserFromTeam(1L, 1L);
 
-        assertNotNull(result);
         verify(teamMembershipRepository).delete(membership);
         verify(teamRepository).save(team);
     }

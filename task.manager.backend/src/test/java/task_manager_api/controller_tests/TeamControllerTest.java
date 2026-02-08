@@ -23,8 +23,7 @@ import task_manager_api.service.TeamService;
 
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -56,7 +55,6 @@ class TeamControllerTest {
         createTeamDTO.setTeamName("teamName");
 
         TeamResponseDTO responseDTO = new TeamResponseDTO();
-        responseDTO.setTeamId(1L);
         responseDTO.setTeamName("teamName");
 
         Mockito.when(teamService.createTeam(any(TeamCreateDTO.class))).thenReturn(responseDTO);
@@ -72,14 +70,15 @@ class TeamControllerTest {
     @Test
     void testAddUserToTeam_WithRole() throws Exception {
         Long teamId = 1L;
+        String username = "John";
         Long userId = 2L;
         TeamRole role = TeamRole.ADMIN;
 
         TeamResponseDTO responseDTO = new TeamResponseDTO();
-        responseDTO.setTeamId(teamId);
+
         responseDTO.setTeamName("teamName");
 
-        Mockito.when(teamService.addUserToTeam(teamId, userId, role)).thenReturn(responseDTO);
+        Mockito.when(teamService.addUserToTeam(teamId, username, role)).thenReturn(responseDTO);
 
         mockMvc.perform(post("/api/teams/{teamId}/users/{userId}", teamId, userId)
                         .param("role", "ADMIN")
@@ -88,22 +87,23 @@ class TeamControllerTest {
                 .andExpect(jsonPath("$.teamId").value(1))
                 .andExpect(jsonPath("$.teamName").value("teamName"));
 
-        verify(teamService).addUserToTeam(teamId, userId, role);
+        verify(teamService).addUserToTeam(teamId, username, role);
 
-        verify(teamService).addUserToTeam(teamId,userId, role);
+        verify(teamService).addUserToTeam(teamId,username, role);
     }
 
     @Test
     void testAddUserToTeam_ForbiddenForMembers() throws Exception {
         Long teamId = 1L;
         Long userId = 2L;
+        String username = "John";
 
-        Mockito.when(teamService.addUserToTeam(anyLong(), anyLong(), any())).thenThrow(new UnauthorizedActionException("Only the owner or admins can add new user"));
+        Mockito.when(teamService.addUserToTeam(anyLong(), anyString(), any())).thenThrow(new UnauthorizedActionException("Only the owner or admins can add new user"));
 
         mockMvc.perform(post("/api/teams/{teamId}/users/{userId}", teamId, userId))
                 .andExpect(status().isForbidden());
 
-        verify(teamService).addUserToTeam(teamId, userId, TeamRole.MEMBER);
+        verify(teamService).addUserToTeam(teamId, username, TeamRole.MEMBER);
     }
 
     // --- Read ---

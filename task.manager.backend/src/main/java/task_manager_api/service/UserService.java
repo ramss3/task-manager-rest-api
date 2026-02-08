@@ -7,6 +7,7 @@ import task_manager_api.DTO.team.TeamResponseDTO;
 import task_manager_api.DTO.user.UserCreateDTO;
 import task_manager_api.DTO.user.UserResponseDTO;
 import task_manager_api.DTO.user.UserUpdateDTO;
+import task_manager_api.exceptions.ConflictException;
 import task_manager_api.exceptions.ResourceNotFoundException;
 import task_manager_api.exceptions.UnauthorizedActionException;
 import task_manager_api.mapper.TeamMapper;
@@ -58,28 +59,28 @@ public class UserService {
         throw new UnauthorizedActionException("User is not authenticated");
     }
 
-    public UserResponseDTO getUserById(Long id) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        return UserMapper.toResponseDTO(user);
-    }
-
-    public UserResponseDTO findUserByUsername(String username) {
+    public UserResponseDTO getUserByUsername(String username) {
 
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         return UserMapper.toResponseDTO(user);
     }
 
     public  UserResponseDTO findUserByEmail(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         return UserMapper.toResponseDTO(user);
     }
 
-    public List<TeamResponseDTO> getUserTeams(Long userId) {
+    public UserResponseDTO getUserById(Long userId) {
         User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return UserMapper.toResponseDTO(user);
+    }
+
+    public List<TeamResponseDTO> getUserTeams(String username) {
+        User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         return user.getUserTeams()
                 .stream()
@@ -95,8 +96,21 @@ public class UserService {
         if (dto.getUserTitle() != null) user.setTitle(dto.getUserTitle());
         if (dto.getFirstName() != null) user.setFirstName(dto.getFirstName());
         if (dto.getLastName() != null) user.setLastName(dto.getLastName());
-        if (dto.getUsername() != null) user.setUsername(dto.getUsername());
-        if (dto.getEmail() != null) user.setEmail(dto.getEmail());
+        if (dto.getUsername() != null) {
+            String newUsername = dto.getUsername().trim();
+            if(userRepository.existsByUsernameAndIdNot(newUsername, user.getId())) {
+                throw new ConflictException("Username is already taken");
+            }
+            user.setUsername(newUsername);
+        }
+
+        if (dto.getEmail() != null) {
+            String newEmail = dto.getEmail().trim();
+            if(userRepository.existsByEmailAndIdNot(newEmail, user.getId())) {
+                throw new ConflictException("The new emails already exists");
+            }
+            user.setEmail(newEmail);
+        }
 
         if (dto.getCurrentPassword() != null && dto.getNewPassword() != null) {
             if (!passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword())) {

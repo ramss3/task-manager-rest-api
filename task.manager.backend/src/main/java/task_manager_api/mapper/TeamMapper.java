@@ -12,7 +12,6 @@ public class TeamMapper {
         if (team == null) return null;
         TeamResponseDTO dto = new TeamResponseDTO();
         dto.setTeamName(team.getName());
-        dto.setTeamId(team.getId());
         dto.setCreatedAt(team.getCreatedAt());
 
         List<UserMemberDTO> members = team.getMemberships() != null

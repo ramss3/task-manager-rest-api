@@ -89,8 +89,6 @@ public class AuthService {
 
         verificationToken.setUsed(true);
         verificationTokenRepository.delete(verificationToken);
-
-        verificationTokenRepository.delete(verificationToken);
     }
 
     @Transactional
@@ -108,8 +106,8 @@ public class AuthService {
 
         String newToken = UUID.randomUUID().toString();
         VerificationToken verificationToken = new VerificationToken(newToken, user);
-        verificationToken.setUsed(true);
         verificationTokenRepository.save(verificationToken);
+        verificationToken.setUsed(true);
 
         String link = "http://localhost:8080/api/auth/verify?token=" + newToken;
         emailService.sendVerificationEmail(user.getEmail(), newToken, link);
