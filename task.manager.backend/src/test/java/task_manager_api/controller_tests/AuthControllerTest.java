@@ -49,8 +49,6 @@ public class AuthControllerTest {
         req.setEmail("user@email.com");
         req.setFirstName("First");
         req.setLastName("Last");
-        req.setTitle(/* whatever your enum/type is */ null); // adjust/remove if required
-
         doNothing().when(authService).register(any());
 
         mockMvc.perform(post("/api/auth/register")
@@ -64,7 +62,7 @@ public class AuthControllerTest {
 
     @Test
     void register_Returns400_WhenMissingRequiredFields() throws Exception {
-        // username/password missing -> should trigger validation if controller has @Valid
+        // username/password missing -> trigger validation if controller has @Valid
         String json = """
             { "email": "rafa@email.com" }
             """;

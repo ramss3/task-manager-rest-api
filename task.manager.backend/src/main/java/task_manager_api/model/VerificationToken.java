@@ -23,9 +23,9 @@ public class VerificationToken {
 
     private LocalDateTime verificationExpiryDate;
 
-    @Column(nullable = false)
-    private boolean used = false;
-
+    // Created for Hibernate, since it needs a no-arguments constructor to
+    // Instantiate the entity via reflection, hydrate it from database rows
+    // Create proxies if needed
     protected VerificationToken() {}
 
     public VerificationToken(String token, User user) {

@@ -109,7 +109,7 @@ public class AuthService {
         String normalized = email == null ? "" : email.trim().toLowerCase();
         if (normalized.isBlank()) throw new BadRequestException("Email is required");
 
-        User user = userRepository.findByEmail(email)
+        User user = userRepository.findByEmail(normalized)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found!"));
 
         if(user.isVerified()) {
@@ -128,6 +128,4 @@ public class AuthService {
         System.out.println("Resent verification email to " + user.getEmail());
 
     }
-
-
 }
