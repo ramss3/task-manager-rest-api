@@ -4,6 +4,7 @@ import jakarta.transaction.Transactional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import task_manager_api.model.User;
 import task_manager_api.model.VerificationToken;
 
 import java.util.Optional;
@@ -11,6 +12,10 @@ import java.util.Optional;
 public interface VerificationTokenRepository extends JpaRepository<VerificationToken, Long> {
 
     Optional<VerificationToken> findByToken(String verificationToken);
+
+    Optional<VerificationToken> findByUser(User user);
+
+    void deleteByUser(User user);
 
     @Modifying
     @Transactional

@@ -7,7 +7,9 @@ import org.springframework.transaction.annotation.Transactional;
 import task_manager_api.DTO.authentication.LoginRequest;
 import task_manager_api.DTO.authentication.RegisterRequest;
 import task_manager_api.exceptions.BadRequestException;
+import task_manager_api.exceptions.ConflictException;
 import task_manager_api.exceptions.ResourceNotFoundException;
+import task_manager_api.exceptions.UnauthorizedActionException;
 import task_manager_api.model.User;
 import task_manager_api.model.VerificationToken;
 import task_manager_api.repository.UserRepository;
@@ -29,19 +31,30 @@ public class AuthService {
 
     @Transactional
     public void register(RegisterRequest request) {
-        if (userRepository.findByUsername(request.getUsername()).isPresent()) {
-            throw new RuntimeException("The Username you set already exists!");
+        String username = request.getUsername() == null ? "" : request.getUsername().trim();
+        String email = request.getEmail() == null ? "" : request.getEmail().trim().toLowerCase();
+
+        if (username.isBlank()) throw new BadRequestException("Username is required");
+        if (email.isBlank()) throw new BadRequestException("Email is required");
+
+        if (userRepository.findByUsername(username).isPresent()) {
+            throw new ConflictException("Username already exists");
+        }
+        if (userRepository.findByEmail(email).isPresent()) {
+            throw new ConflictException("Email already exists");
         }
 
         User user = new User();
         user.setTitle(request.getTitle());
         user.setFirstName(request.getFirstName());
         user.setLastName(request.getLastName());
-        user.setUsername(request.getUsername());
+        user.setUsername(username);
         user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setEmail(request.getEmail());
+        user.setEmail(email);
         user.setVerified(false);
         userRepository.save(user);
+
+        verificationTokenRepository.deleteByUser(user);
 
         String token = UUID.randomUUID().toString();
         VerificationToken verificationToken = new VerificationToken(token, user);
@@ -52,37 +65,50 @@ public class AuthService {
     }
 
     public String login(LoginRequest request) {
-        User user = userRepository.findByUsername(request.getUsername()).orElseThrow(() -> new RuntimeException("Username not found!"));
+        String username = request.getUsername() == null ? "" : request.getUsername().trim();
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Username not found"));
 
         if (!user.isVerified()) {
-            throw new RuntimeException("Please verify your email before logging in.");
+            throw new UnauthorizedActionException("Please verify your email before logging in.");
         }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Invalid credentials");
+            throw new UnauthorizedActionException("Invalid credentials");
         }
 
         return jwtTokenProvider.generateToken(user.getId());
     }
 
+    @Transactional
     public void verifyAccount(String token) {
-        VerificationToken verificationToken = verificationTokenRepository.findByToken(token)
-                .orElseThrow(() -> new RuntimeException("Verification token not found!"));
+        String value = token == null ? "" : token.trim();
+        if (value.isBlank()) throw new BadRequestException("Verification token is required");
+
+        VerificationToken verificationToken = verificationTokenRepository.findByToken(value)
+                .orElseThrow(() -> new ResourceNotFoundException("Verification token not found!"));
 
         if(verificationToken.isExpired()) {
-            throw new RuntimeException("Verification token is expired!");
+            verificationTokenRepository.delete(verificationToken);
+            throw new BadRequestException("Verification token is expired!");
         }
 
         User user = verificationToken.getUser();
+        if (user.isVerified()) {
+            verificationTokenRepository.delete(verificationToken); // token no longer needed
+            throw new BadRequestException("User is already verified");
+        }
+
         user.setVerified(true);
         userRepository.save(user);
-
-        verificationToken.setUsed(true);
         verificationTokenRepository.delete(verificationToken);
     }
 
     @Transactional
     public void resendVerificationEmail(String email) {
+        String normalized = email == null ? "" : email.trim().toLowerCase();
+        if (normalized.isBlank()) throw new BadRequestException("Email is required");
+
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found!"));
 
@@ -90,9 +116,7 @@ public class AuthService {
             throw new BadRequestException("User is already verified!");
         }
 
-        verificationTokenRepository.findAll().stream()
-                .filter(token -> token.getUser().equals(user))
-                .forEach(verificationTokenRepository::delete);
+        verificationTokenRepository.deleteByUser(user);
 
         String newToken = UUID.randomUUID().toString();
         VerificationToken verificationToken = new VerificationToken(newToken, user);

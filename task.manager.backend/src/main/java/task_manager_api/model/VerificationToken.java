@@ -18,12 +18,13 @@ public class VerificationToken {
     private String token;
 
     @OneToOne(fetch = FetchType.EAGER)
-    @JoinColumn(nullable = false, name = "user_id")
+    @JoinColumn(nullable = false, name = "user_id", unique = true)
     private User user;
 
     private LocalDateTime verificationExpiryDate;
 
-    private boolean used;
+    @Column(nullable = false)
+    private boolean used = false;
 
     protected VerificationToken() {}
 

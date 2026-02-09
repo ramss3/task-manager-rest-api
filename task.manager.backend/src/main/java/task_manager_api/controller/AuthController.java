@@ -1,9 +1,12 @@
 package task_manager_api.controller;
 
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import task_manager_api.DTO.authentication.LoginRequest;
 import task_manager_api.DTO.authentication.RegisterRequest;
+import task_manager_api.DTO.authentication.ResendVerificationRequest;
 import task_manager_api.service.auth.AuthService;
 
 import java.util.Map;
@@ -19,13 +22,13 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<String> register(@RequestBody RegisterRequest request) {
+    public ResponseEntity<String> register(@Valid @RequestBody RegisterRequest request) {
         authService.register(request);
-        return ResponseEntity.ok("User registered successfully! Please verify your email.");
+        return ResponseEntity.status(HttpStatus.CREATED).body("User registered successfully! Please verify your email.");
     }
 
     @PostMapping("/login")
-    public ResponseEntity<Map<String, String>> login(@RequestBody LoginRequest request) {
+    public ResponseEntity<Map<String, String>> login(@Valid @RequestBody LoginRequest request) {
         String token = authService.login(request);
         return ResponseEntity.ok(Map.of("token", token));
     }
@@ -37,9 +40,8 @@ public class AuthController {
     }
 
     @PostMapping("/resend-verification")
-    public ResponseEntity<String> resendVerification(@RequestParam Map<String, String> request) {
-        String email = request.get("email");
-        authService.resendVerificationEmail(email);
+    public ResponseEntity<String> resendVerification(@Valid @RequestBody ResendVerificationRequest request) {
+        authService.resendVerificationEmail(request.getEmail());
         return ResponseEntity.ok("Verification email sent!");
     }
 }
