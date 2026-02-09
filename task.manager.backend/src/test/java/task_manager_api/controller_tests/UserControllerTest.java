@@ -11,24 +11,20 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import task_manager_api.DTO.user.UserResponseDTO;
 import task_manager_api.controller.UserController;
 import task_manager_api.model.User;
 import task_manager_api.security.JwtTokenProvider;
 import task_manager_api.security.UserPrincipal;
-import task_manager_api.service.CustomUserDetailsService;
-import task_manager_api.service.UserService;
+import task_manager_api.service.auth.CustomUserDetailsService;
+import task_manager_api.service.user.UserService;
 
-import static java.lang.reflect.Array.get;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import org.springframework.security.authorization.AuthorizationDeniedException;
 
 @WebMvcTest(UserController.class)
 @AutoConfigureMockMvc(addFilters = false) // Keeps the Handler from being null

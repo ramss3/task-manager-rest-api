@@ -1,4 +1,4 @@
-package task_manager_api.service;
+package task_manager_api.service.auth;
 
 import jakarta.transaction.Transactional;
 import org.springframework.scheduling.annotation.Scheduled;

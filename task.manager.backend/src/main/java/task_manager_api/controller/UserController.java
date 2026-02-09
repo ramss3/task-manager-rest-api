@@ -11,7 +11,7 @@ import task_manager_api.DTO.user.UserResponseDTO;
 import task_manager_api.DTO.user.UserUpdateDTO;
 import task_manager_api.mapper.UserMapper;
 import task_manager_api.model.User;
-import task_manager_api.service.UserService;
+import task_manager_api.service.user.UserService;
 import java.util.*;
 
 @RestController
@@ -48,16 +48,15 @@ public class UserController {
         return userService.getUserByUsername(username);
     }
 
-    @GetMapping("/username/{username}/teams")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<TeamResponseDTO>> getUserTeams(@PathVariable String username) {
-        return ResponseEntity.ok(userService.getUserTeams(username));
+    @GetMapping("/profile/teams")
+    public ResponseEntity<List<TeamResponseDTO>> getMyTeams() {
+        return ResponseEntity.ok(userService.getMyTeams());
     }
 
     @GetMapping(params = "email")
     @PreAuthorize("isAuthenticated()")
     public UserResponseDTO findUserByEmail(@PathVariable String email) {
-        return userService.findUserByEmail(email);
+        return userService.getUserByEmail(email);
     }
 
     // --- Update ---

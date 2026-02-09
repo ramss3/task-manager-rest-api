@@ -7,7 +7,7 @@ import task_manager_api.DTO.task.TaskResponseDTO;
 import task_manager_api.DTO.task.TaskSummaryDTO;
 import task_manager_api.DTO.task.TaskUpdateDTO;
 import task_manager_api.model.Status;
-import task_manager_api.service.TaskService;
+import task_manager_api.service.task.TaskService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;

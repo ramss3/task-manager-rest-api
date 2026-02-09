@@ -17,8 +17,6 @@ public interface TeamMembershipRepository extends JpaRepository<TeamMembership, 
 
     Optional<TeamMembership> findByTeamAndUser(Team team, User user);
 
-    boolean existsByTeamAndUser(Team team, User user);
-
     void deleteAllByTeam(Team team);
 
 }

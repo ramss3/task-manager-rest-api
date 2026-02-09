@@ -4,7 +4,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import task_manager_api.DTO.authentication.LoginRequest;
 import task_manager_api.DTO.authentication.RegisterRequest;
-import task_manager_api.service.AuthService;
+import task_manager_api.service.auth.AuthService;
 
 import java.util.Map;
 

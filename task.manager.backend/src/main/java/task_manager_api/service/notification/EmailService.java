@@ -1,4 +1,4 @@
-package task_manager_api.service;
+package task_manager_api.service.notification;
 
 
 import org.springframework.beans.factory.annotation.Value;

@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import task_manager_api.DTO.task.TaskSummaryDTO;
 import task_manager_api.DTO.team.*;
 import task_manager_api.model.*;
-import task_manager_api.service.TeamService;
+import task_manager_api.service.team.TeamService;
 import java.util.List;
 
 @RestController

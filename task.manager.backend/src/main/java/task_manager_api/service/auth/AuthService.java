@@ -1,4 +1,4 @@
-package task_manager_api.service;
+package task_manager_api.service.auth;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -12,6 +12,8 @@ import task_manager_api.model.VerificationToken;
 import task_manager_api.repository.UserRepository;
 import task_manager_api.repository.VerificationTokenRepository;
 import task_manager_api.security.JwtTokenProvider;
+import task_manager_api.service.notification.EmailService;
+
 import java.util.UUID;
 
 @Service

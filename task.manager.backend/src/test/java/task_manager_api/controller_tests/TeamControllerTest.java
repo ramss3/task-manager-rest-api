@@ -19,7 +19,7 @@ import task_manager_api.model.Status;
 import task_manager_api.model.TeamRole;
 import task_manager_api.security.JwtAuthenticationFilter;
 import task_manager_api.security.JwtTokenProvider;
-import task_manager_api.service.TeamService;
+import task_manager_api.service.team.TeamService;
 
 import java.util.List;
 

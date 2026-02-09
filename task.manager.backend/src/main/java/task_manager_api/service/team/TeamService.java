@@ -1,4 +1,4 @@
-package task_manager_api.service;
+package task_manager_api.service.team;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -9,7 +9,6 @@ import task_manager_api.DTO.team.TeamResponseDTO;
 import task_manager_api.DTO.team.TeamUpdateDTO;
 import task_manager_api.DTO.team.UserMemberDTO;
 import task_manager_api.exceptions.ConflictException;
-import task_manager_api.exceptions.ResourceNotFoundException;
 import task_manager_api.exceptions.UnauthorizedActionException;
 import task_manager_api.mapper.TaskMapper;
 import task_manager_api.mapper.TeamMapper;
@@ -18,7 +17,8 @@ import task_manager_api.model.*;
 import task_manager_api.repository.TasksRepository;
 import task_manager_api.repository.TeamMembershipRepository;
 import task_manager_api.repository.TeamRepository;
-import task_manager_api.repository.UserRepository;
+import task_manager_api.service.user.UserLookupService;
+import task_manager_api.service.user.UserService;
 
 import java.util.List;
 
@@ -28,30 +28,30 @@ import java.util.List;
 public class TeamService {
 
     private final TeamRepository teamRepository;
-    private final UserRepository userRepository;
     private final TasksRepository tasksRepository;
     private final TeamMembershipRepository teamMembershipRepository;
     private final UserService userService;
     private final UserLookupService userLookupService;
     private final TeamMembershipPolicy membershipPolicy;
+    private final TeamAccessAuthService teamAccessAuthService;
 
     // --- Team ---
     @Transactional
     public TeamResponseDTO createTeam(TeamCreateDTO dto) {
         // When creating a team the creator automatically integrates the team
-        User user = requireLoggedUser();
+        User user = userService.getLoggedUser();
 
         Team team = new Team();
         team.setName(dto.getTeamName());
         Team createdTeam = teamRepository.save(team);
 
-        TeamMembership ownerMembership = createMembership(createdTeam, user, TeamRole.OWNER);
+        TeamMembership ownerMembership = teamAccessAuthService.createMembership(createdTeam, user, TeamRole.OWNER);
         createdTeam.getMemberships().add(ownerMembership);
         return TeamMapper.toResponseDTO(createdTeam);
     }
 
     public List<TeamResponseDTO> getAllTeamsForUser() {
-        return teamMembershipRepository.findByUser(requireLoggedUser())
+        return teamMembershipRepository.findByUser(userService.getLoggedUser())
                 .stream()
                 .map(TeamMembership::getTeam)
                 .map(TeamMapper::toResponseDTO)
@@ -60,10 +60,10 @@ public class TeamService {
 
     @Transactional
     public TeamResponseDTO updateTeam(Long teamId, TeamUpdateDTO updatedTeam) {
-        User loggedUser = requireLoggedUser();
-        Team team = requireTeam(teamId);
+        User loggedUser = userService.getLoggedUser();
+        Team team = teamAccessAuthService.requireTeam(teamId);
 
-        TeamMembership membership = requireMembership(team, loggedUser);
+        TeamMembership membership = teamAccessAuthService.requireMembership(team, loggedUser);
         requireOwner(membership, "Only the owner can update the team");
 
         team.setName(updatedTeam.getTeamName());
@@ -72,10 +72,10 @@ public class TeamService {
 
     @Transactional
     public void deleteTeam(Long teamId) {
-        User loggedUser = requireLoggedUser();
-        Team team = requireTeam(teamId);
+        User loggedUser = userService.getLoggedUser();
+        Team team = teamAccessAuthService.requireTeam(teamId);
 
-        TeamMembership membership = requireMembership(team, loggedUser);
+        TeamMembership membership = teamAccessAuthService.requireMembership(team, loggedUser);
         requireOwner(membership, "Only the team owner can delete the team");
 
         teamMembershipRepository.deleteAllByTeam(team);
@@ -85,10 +85,10 @@ public class TeamService {
     // Team members
     @Transactional
     public TeamResponseDTO addUserToTeam(Long teamId, String identifier, TeamRole role) {
-        User currUser = requireLoggedUser();
-        Team team = requireTeam(teamId);
+        User currUser = userService.getLoggedUser();
+        Team team = teamAccessAuthService.requireTeam(teamId);
 
-        TeamMembership loggedMembership = requireMembership(team, currUser);
+        TeamMembership loggedMembership = teamAccessAuthService.requireMembership(team, currUser);
         membershipPolicy.requireCanManageMembers(loggedMembership, "Only the owner or admins can add new user to the team");
 
         TeamRole desiredRole = role != null ? role : TeamRole.MEMBER;
@@ -99,11 +99,11 @@ public class TeamService {
 
         User newUser = userLookupService.searchByIdentifier(identifier);
 
-        if(teamMembershipRepository.existsByTeamAndUser(team, newUser)) {
+        if(teamAccessAuthService.isMember(team, newUser)) {
             throw new ConflictException("User is already in the team");
         }
 
-        TeamMembership teamMembership = createMembership(team, newUser, desiredRole);
+        TeamMembership teamMembership = teamAccessAuthService.createMembership(team, newUser, desiredRole);
         team.getMemberships().add(teamMembership);
         teamRepository.save(team);
         return TeamMapper.toResponseDTO(team);
@@ -113,15 +113,15 @@ public class TeamService {
     public TeamResponseDTO updateUserRole(Long teamId, Long userId, TeamRole newRole) {
         if(newRole == null) throw new ConflictException("New role cannot be null");
 
-        User currUser = requireLoggedUser();
-        Team team = requireTeam(teamId);
+        User currUser = userService.getLoggedUser();
+        Team team = teamAccessAuthService.requireTeam(teamId);
 
-        TeamMembership loggedMembership = requireMembership(team, currUser);
+        TeamMembership loggedMembership = teamAccessAuthService.requireMembership(team, currUser);
         membershipPolicy.requireCanManageMembers(loggedMembership,
                 "Only the owner or admins can update a user role");
 
-        User userToUpdate = requireUser(userId);
-        TeamMembership membershipToUpdate = requireMembership(team, userToUpdate);
+        User userToUpdate = userLookupService.requireUser(userId);
+        TeamMembership membershipToUpdate = teamAccessAuthService.requireMembership(team, userToUpdate);
 
         membershipPolicy.validateRoleChange(currUser, loggedMembership, userToUpdate, membershipToUpdate, newRole);
 
@@ -132,14 +132,14 @@ public class TeamService {
 
     @Transactional
     public void removeUserFromTeam(Long teamId, Long userId) {
-        User currUser = requireLoggedUser();
-        Team team = requireTeam(teamId);
+        User currUser = userService.getLoggedUser();
+        Team team = teamAccessAuthService.requireTeam(teamId);
 
-        TeamMembership loggedMembership = requireMembership(team, currUser);
+        TeamMembership loggedMembership = teamAccessAuthService.requireMembership(team, currUser);
         membershipPolicy.requireCanManageMembers(loggedMembership, "Only the owner or admins can delete a user");
 
-        User targetUser  = requireUser(userId);
-        TeamMembership targetMembership = requireMembership(team, targetUser);
+        User targetUser  = userLookupService.requireUser(userId);
+        TeamMembership targetMembership = teamAccessAuthService.requireMembership(team, targetUser);
 
         if (targetMembership.getTeamRole().isOwner()) {
             throw new UnauthorizedActionException("You cannot remove the team owner");
@@ -151,10 +151,10 @@ public class TeamService {
     }
 
     public List<UserMemberDTO> getTeamMembers(Long teamId) {
-        User currUser = requireLoggedUser();
-        Team team = requireTeam(teamId);
+        User currUser = userService.getLoggedUser();
+        Team team = teamAccessAuthService.requireTeam(teamId);
 
-        requireMembership(team, currUser);
+        teamAccessAuthService.requireMembership(team, currUser);
 
         return teamMembershipRepository.findByTeam(team)
                 .stream()
@@ -164,10 +164,10 @@ public class TeamService {
 
     // Tasks
     public List<TaskSummaryDTO> getTeamTasks(Long teamId) {
-        User currUser = requireLoggedUser();
-        Team team = requireTeam(teamId);
+        User currUser = userService.getLoggedUser();
+        Team team = teamAccessAuthService.requireTeam(teamId);
 
-        requireMembership(team, currUser);
+        teamAccessAuthService.requireMembership(team, currUser);
         return tasksRepository.findByTeam(team)
                 .stream()
                 .map(TaskMapper::toSummaryDTO)
@@ -175,36 +175,9 @@ public class TeamService {
     }
 
     // Helpers
-    private User requireLoggedUser() {
-        return userService.getLoggedUser();
-    }
-
-    private Team requireTeam(Long teamId) {
-        return teamRepository.findById(teamId)
-                .orElseThrow(() -> new ResourceNotFoundException("Team not found"));
-    }
-
-    private User requireUser(Long userId) {
-        return userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-    }
-
-    private TeamMembership requireMembership(Team team, User user) {
-        return teamMembershipRepository.findByTeamAndUser(team, user)
-                .orElseThrow(() -> new UnauthorizedActionException("You are not a member of this team"));
-    }
-
     private void requireOwner(TeamMembership membership, String msg) {
         if (!membership.getTeamRole().isOwner()) {
             throw new UnauthorizedActionException(msg);
         }
-    }
-
-    private TeamMembership createMembership(Team team, User user, TeamRole role) {
-        TeamMembership membership = new TeamMembership();
-        membership.setTeam(team);
-        membership.setUser(user);
-        membership.setTeamRole(role);
-        return teamMembershipRepository.save(membership);
     }
 }

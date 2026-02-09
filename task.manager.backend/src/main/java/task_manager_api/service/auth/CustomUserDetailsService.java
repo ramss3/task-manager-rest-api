@@ -1,4 +1,4 @@
-package task_manager_api.service;
+package task_manager_api.service.auth;
 
 
 import org.springframework.security.core.userdetails.UserDetails;

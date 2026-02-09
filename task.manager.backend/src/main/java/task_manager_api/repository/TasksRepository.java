@@ -9,9 +9,9 @@ import java.util.List;
 
 public interface TasksRepository extends JpaRepository<Task, Integer> {
 
-    List<Task> findByTitleContainingIgnoreCase(String keyword);
+    List<Task> findByUserAndTitleContainingIgnoreCase(User user, String keyword);
 
-    List<Task> findByStatus(Status status);
+    List<Task> findByUserAndStatus(User user, Status status);
 
     List<Task> findByUser(User user);
 

@@ -25,8 +25,8 @@ import task_manager_api.repository.TasksRepository;
 import task_manager_api.repository.TeamMembershipRepository;
 import task_manager_api.repository.TeamRepository;
 import task_manager_api.repository.UserRepository;
-import task_manager_api.service.TeamService;
-import task_manager_api.service.UserService;
+import task_manager_api.service.team.TeamService;
+import task_manager_api.service.user.UserService;
 
 @SpringBootTest
 public class TeamServiceTest {

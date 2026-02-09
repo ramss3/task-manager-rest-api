@@ -14,7 +14,7 @@ import task_manager_api.DTO.task.*;
 import task_manager_api.controller.TaskController;
 import task_manager_api.model.Status;
 import task_manager_api.security.JwtAuthenticationFilter;
-import task_manager_api.service.TaskService;
+import task_manager_api.service.task.TaskService;
 
 
 import java.time.LocalDateTime;

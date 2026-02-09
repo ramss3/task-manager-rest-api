@@ -1,8 +1,11 @@
-package task_manager_api.service;
+package task_manager_api.service.user;
 
+import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import task_manager_api.DTO.team.TeamResponseDTO;
 import task_manager_api.DTO.user.UserCreateDTO;
 import task_manager_api.DTO.user.UserResponseDTO;
@@ -17,81 +20,82 @@ import task_manager_api.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import task_manager_api.security.UserPrincipal;
 
-import java.util.*;
+import java.util.List;
+
 
 @Service
+@RequiredArgsConstructor
 public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-
-
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
-    }
+    private final UserLookupService userLookupService;
 
     // --- Create ---
+    @Transactional
     public UserResponseDTO createUser(UserCreateDTO dto) {
-        User user = new User();
-        user.setTitle(dto.getUserTitle());
-        user.setUsername(dto.getUsername());
-        user.setPassword(passwordEncoder.encode(dto.getPassword()));
-        user.setFirstName(dto.getFirstName());
-        user.setLastName(dto.getLastName());
-        user.setEmail(dto.getEmail());
-        userRepository.save(user);
-
-        return UserMapper.toResponseDTO(user);
+        try {
+            User user = new User();
+            user.setTitle(dto.getUserTitle());
+            user.setUsername(dto.getUsername().trim());
+            user.setPassword(passwordEncoder.encode(dto.getPassword()));
+            user.setFirstName(dto.getFirstName());
+            user.setLastName(dto.getLastName());
+            user.setEmail(dto.getEmail().trim().toLowerCase());
+            return UserMapper.toResponseDTO(userRepository.save(user));
+        } catch (DataIntegrityViolationException e) {
+            throw new ConflictException("Username or email already exists");
+        }
     }
 
     // --- Read ---
     public User getLoggedUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal principal) {
+        if (authentication != null
+                && authentication.isAuthenticated()
+                && authentication.getPrincipal() instanceof UserPrincipal principal) {
 
-            // FAST: Get user directly by ID
             return userRepository.findById(principal.getId())
                     .orElseThrow(() -> new ResourceNotFoundException("Logged user not found"));
         }
-
         throw new UnauthorizedActionException("User is not authenticated");
     }
 
     public UserResponseDTO getUserByUsername(String username) {
-
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        return UserMapper.toResponseDTO(user);
+        return UserMapper.toResponseDTO(
+                userRepository.findByUsername(username.trim())
+                        .orElseThrow(() -> new ResourceNotFoundException("User not found"))
+        );
     }
 
-    public  UserResponseDTO findUserByEmail(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        return UserMapper.toResponseDTO(user);
+    public  UserResponseDTO getUserByEmail(String email) {
+        return UserMapper.toResponseDTO(
+                userRepository.findByEmail(email.trim().toLowerCase())
+                        .orElseThrow(() -> new ResourceNotFoundException("User not found"))
+        );
     }
 
     public UserResponseDTO getUserById(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        return UserMapper.toResponseDTO(user);
+        return UserMapper.toResponseDTO(userLookupService.requireUser(userId));
     }
 
-    public List<TeamResponseDTO> getUserTeams(String username) {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        return user.getUserTeams()
+    @Transactional(readOnly = true)
+    public List<TeamResponseDTO> getMyTeams() {
+        return getLoggedUser().getTeams()
                 .stream()
                 .map(TeamMapper::toResponseDTO)
                 .toList();
     }
 
     // --- Update ---
+    @Transactional
     public UserResponseDTO updateUser(Long id, UserUpdateDTO dto) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        User logged = getLoggedUser();
+        if (!logged.getId().equals(id)) {
+            throw new UnauthorizedActionException("You cannot update another user");
+        }
+        User user = userLookupService.requireUser(id);
 
         if (dto.getUserTitle() != null) user.setTitle(dto.getUserTitle());
         if (dto.getFirstName() != null) user.setFirstName(dto.getFirstName());
@@ -105,30 +109,39 @@ public class UserService {
         }
 
         if (dto.getEmail() != null) {
-            String newEmail = dto.getEmail().trim();
+            String newEmail = dto.getEmail().trim().toLowerCase();
             if(userRepository.existsByEmailAndIdNot(newEmail, user.getId())) {
                 throw new ConflictException("The new emails already exists");
             }
             user.setEmail(newEmail);
         }
 
-        if (dto.getCurrentPassword() != null && dto.getNewPassword() != null) {
+        boolean hasCurr = dto.getCurrentPassword() != null && !dto.getCurrentPassword().isBlank();
+        boolean hasNew = dto.getNewPassword() != null && !dto.getNewPassword().isBlank();
+
+        if(hasCurr ^ hasNew) {
+            throw new ConflictException("To change the password, provide current and new password");
+        }
+
+        if (hasCurr) {
             if (!passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword())) {
                 throw new UnauthorizedActionException("Current password does not match");
             }
-
             if (passwordEncoder.matches(dto.getNewPassword(), user.getPassword())) {
                 throw new UnauthorizedActionException("New password is the same as the old one");
             }
-
             user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
         }
 
-        userRepository.save(user);
-        return UserMapper.toResponseDTO(user);
+        try {
+            return UserMapper.toResponseDTO(userRepository.save(user));
+        } catch (DataIntegrityViolationException e) {
+            throw new ConflictException("Username or email already exists");
+        }
     }
 
     // --- Delete ---
+    @Transactional
     public void deleteUser(Long id) {
         User loggedUser = getLoggedUser();
 

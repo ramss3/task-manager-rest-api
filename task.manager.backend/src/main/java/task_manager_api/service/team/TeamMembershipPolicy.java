@@ -1,4 +1,4 @@
-package task_manager_api.service;
+package task_manager_api.service.team;
 
 import org.springframework.stereotype.Component;
 import task_manager_api.exceptions.UnauthorizedActionException;

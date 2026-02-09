@@ -16,7 +16,7 @@ import task_manager_api.exceptions.UnauthorizedActionException;
 import task_manager_api.model.User;
 import task_manager_api.model.UserTitle;
 import task_manager_api.repository.UserRepository;
-import task_manager_api.service.UserService;
+import task_manager_api.service.user.UserService;
 
 import java.util.Optional;
 

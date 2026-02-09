@@ -58,7 +58,7 @@ public class User {
         this.createdAt = LocalDateTime.now();
     }
 
-    public List<Team> getUserTeams() {
+    public List<Team> getTeams() {
         return userTeams.stream()
                 .map(TeamMembership::getTeam)
                 .toList();

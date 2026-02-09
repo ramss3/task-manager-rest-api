@@ -6,7 +6,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import task_manager_api.DTO.task.TaskCreateDTO;
-import task_manager_api.DTO.user.UserUpdateDTO;
 import task_manager_api.exceptions.ResourceNotFoundException;
 import task_manager_api.exceptions.UnauthorizedActionException;
 import task_manager_api.model.Status;
@@ -16,10 +15,10 @@ import task_manager_api.model.User;
 import task_manager_api.repository.TasksRepository;
 import task_manager_api.repository.TeamMembershipRepository;
 import task_manager_api.repository.TeamRepository;
-import task_manager_api.service.TaskService;
-import task_manager_api.service.UserService;
+import task_manager_api.service.task.TaskService;
+import task_manager_api.service.user.UserService;
 import task_manager_api.DTO.task.*;
-import task_manager_api.model.*;
+
 import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
 
