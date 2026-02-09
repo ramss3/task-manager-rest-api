@@ -30,7 +30,7 @@ public class AuthService {
     private final VerificationTokenRepository verificationTokenRepository;
 
     @Transactional
-    public void register(RegisterRequest request) {
+    public void register(RegisterRequest request, String url) {
         String username = request.getUsername() == null ? "" : request.getUsername().trim();
         String email = request.getEmail() == null ? "" : request.getEmail().trim().toLowerCase();
 
@@ -60,7 +60,7 @@ public class AuthService {
         VerificationToken verificationToken = new VerificationToken(token, user);
         verificationTokenRepository.save(verificationToken);
 
-        String link = "http://localhost:8080/api/auth/verify?token=" + token;
+        String link = url + "/api/auth/verify?token=" + token;
         emailService.sendVerificationEmail(user.getEmail(), link);
     }
 
@@ -105,7 +105,7 @@ public class AuthService {
     }
 
     @Transactional
-    public void resendVerificationEmail(String email) {
+    public void resendVerificationEmail(String email, String url) {
         String normalized = email == null ? "" : email.trim().toLowerCase();
         if (normalized.isBlank()) throw new BadRequestException("Email is required");
 
@@ -122,7 +122,7 @@ public class AuthService {
         VerificationToken verificationToken = new VerificationToken(newToken, user);
         verificationTokenRepository.save(verificationToken);
 
-        String link = "http://localhost:8080/api/auth/verify?token=" + newToken;
+        String link = url + "/api/auth/verify?token=" + newToken;
         emailService.sendVerificationEmail(user.getEmail(), link);
 
         System.out.println("Resent verification email to " + user.getEmail());

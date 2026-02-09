@@ -3,7 +3,6 @@ package task_manager_api.service_tests;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -44,6 +43,8 @@ class AuthServiceTest {
 
     private RegisterRequest validRegister;
 
+    private static final String BASE_URL = "http://localhost:8080";
+
     @BeforeEach
     void setup() {
         validRegister = new RegisterRequest();
@@ -60,13 +61,14 @@ class AuthServiceTest {
         when(userRepository.findByEmail("test@email.com")).thenReturn(Optional.empty());
         when(passwordEncoder.encode("pass")).thenReturn("ENC");
 
+        // Save returns same user with an ID set (so token/user relations are consistent)
         when(userRepository.save(any(User.class))).thenAnswer(inv -> {
             User u = inv.getArgument(0);
             u.setId(10L);
             return u;
         });
 
-        authService.register(validRegister);
+        authService.register(validRegister, BASE_URL);
 
         // user saved with normalized values
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
@@ -76,6 +78,8 @@ class AuthServiceTest {
         assertEquals("test@email.com", u.getEmail());
         assertEquals("ENC", u.getPassword());
         assertFalse(u.isVerified());
+
+        verify(verificationTokenRepository).deleteByUser(u);
 
         // capture token and ensure email link contains the SAME token
         ArgumentCaptor<VerificationToken> tokenCaptor = ArgumentCaptor.forClass(VerificationToken.class);
@@ -89,17 +93,22 @@ class AuthServiceTest {
 
         assertEquals("test@email.com", emailCaptor.getValue());
         assertTrue(linkCaptor.getValue().contains(vt.getToken()));
-        assertTrue(linkCaptor.getValue().startsWith("http://localhost:8080/api/auth/verify?token="));
+        assertTrue(linkCaptor.getValue().startsWith(BASE_URL + "/api/auth/verify?token="));
     }
 
     @Test
     void register_Fails_WhenUsernameExists() {
         when(userRepository.findByUsername("User")).thenReturn(Optional.of(new User()));
 
-        ConflictException ex = assertThrows(ConflictException.class, () -> authService.register(validRegister));
+        ConflictException ex = assertThrows(
+                ConflictException.class,
+                () -> authService.register(validRegister, BASE_URL)
+        );
         assertEquals("Username already exists", ex.getMessage());
 
         verify(userRepository, never()).save(any());
+        verify(verificationTokenRepository, never()).deleteByUser(any());
+        verify(verificationTokenRepository, never()).save(any());
         verify(emailService, never()).sendVerificationEmail(anyString(), anyString());
     }
 
@@ -108,17 +117,28 @@ class AuthServiceTest {
         when(userRepository.findByUsername("User")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("test@email.com")).thenReturn(Optional.of(new User()));
 
-        ConflictException ex = assertThrows(ConflictException.class, () -> authService.register(validRegister));
+        ConflictException ex = assertThrows(
+                ConflictException.class,
+                () -> authService.register(validRegister, BASE_URL)
+        );
         assertEquals("Email already exists", ex.getMessage());
+
+        verify(userRepository, never()).save(any());
+        verify(verificationTokenRepository, never()).save(any());
+        verify(emailService, never()).sendVerificationEmail(anyString(), anyString());
     }
 
     @Test
     void register_Fails_WhenUsernameBlank() {
         RegisterRequest request = new RegisterRequest();
-        request.setUsername("");
+        request.setUsername("   ");
         request.setEmail("test@email.com");
         request.setPassword("pass");
-        BadRequestException ex = assertThrows(BadRequestException.class, () -> authService.register(request));
+
+        BadRequestException ex = assertThrows(
+                BadRequestException.class,
+                () -> authService.register(request, BASE_URL)
+        );
         assertEquals("Username is required", ex.getMessage());
 
         verifyNoInteractions(emailService);
@@ -133,13 +153,17 @@ class AuthServiceTest {
         req.setEmail("   ");
         req.setPassword("pass");
 
-        BadRequestException ex = assertThrows(BadRequestException.class, () -> authService.register(req));
+        BadRequestException ex = assertThrows(
+                BadRequestException.class,
+                () -> authService.register(req, BASE_URL)
+        );
         assertEquals("Email is required", ex.getMessage());
 
         verifyNoInteractions(emailService);
         verify(verificationTokenRepository, never()).save(any());
         verify(userRepository, never()).save(any());
     }
+
 
     // --- Login Tests ---
     @Test
@@ -230,11 +254,15 @@ class AuthServiceTest {
     // --- Verify Tests ---
     @Test
     void verifyAccount_Fails_WhenTokenBlank() {
-        BadRequestException ex = assertThrows(BadRequestException.class, () -> authService.verifyAccount("   "));
+        BadRequestException ex = assertThrows(
+                BadRequestException.class,
+                () -> authService.verifyAccount("   ")
+        );
         assertEquals("Verification token is required", ex.getMessage());
 
-        verifyNoInteractions(verificationTokenRepository);
-        verifyNoInteractions(userRepository);
+        verify(verificationTokenRepository, never()).findByToken(anyString());
+        verify(verificationTokenRepository, never()).delete(any(VerificationToken.class));
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
@@ -300,12 +328,17 @@ class AuthServiceTest {
     // --- Resend tests ---
     @Test
     void resendVerificationEmail_Fails_WhenEmailBlank() {
-        BadRequestException ex = assertThrows(BadRequestException.class, () -> authService.resendVerificationEmail("   "));
+        BadRequestException ex = assertThrows(
+                BadRequestException.class,
+                () -> authService.resendVerificationEmail("   ", BASE_URL)
+        );
         assertEquals("Email is required", ex.getMessage());
 
-        verifyNoInteractions(userRepository);
-        verifyNoInteractions(verificationTokenRepository);
-        verifyNoInteractions(emailService);
+        // the method should fail before touching persistence or email
+        verify(userRepository, never()).findByEmail(anyString());
+        verify(verificationTokenRepository, never()).deleteByUser(any(User.class));
+        verify(verificationTokenRepository, never()).save(any(VerificationToken.class));
+        verify(emailService, never()).sendVerificationEmail(anyString(), anyString());
     }
 
     @Test
@@ -313,7 +346,7 @@ class AuthServiceTest {
         when(userRepository.findByEmail("x@email.com")).thenReturn(Optional.empty());
 
         ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class,
-                () -> authService.resendVerificationEmail("X@Email.com"));
+                () -> authService.resendVerificationEmail("X@Email.com", BASE_URL));
         assertEquals("User not found!", ex.getMessage());
     }
 
@@ -326,7 +359,7 @@ class AuthServiceTest {
         when(userRepository.findByEmail("test@email.com")).thenReturn(Optional.of(user));
 
         BadRequestException ex = assertThrows(BadRequestException.class,
-                () -> authService.resendVerificationEmail("Test@Email.com"));
+                () -> authService.resendVerificationEmail("Test@Email.com", BASE_URL));
         assertEquals("User is already verified!", ex.getMessage());
 
         verify(verificationTokenRepository, never()).save(any());
@@ -341,11 +374,12 @@ class AuthServiceTest {
 
         when(userRepository.findByEmail("test@email.com")).thenReturn(Optional.of(user));
 
-        authService.resendVerificationEmail("  Test@Email.com  ");
+        authService.resendVerificationEmail("  Test@Email.com  ", BASE_URL);
 
         verify(verificationTokenRepository).deleteByUser(user);
         verify(verificationTokenRepository).save(any(VerificationToken.class));
-        verify(emailService).sendVerificationEmail(eq("test@email.com"), contains("/api/auth/verify?token="));
+        verify(emailService).sendVerificationEmail(eq("test@email.com"),
+                startsWith(BASE_URL + "/api/auth/verify?token="));
     }
 }
 

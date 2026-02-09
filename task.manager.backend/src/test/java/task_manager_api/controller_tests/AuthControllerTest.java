@@ -49,7 +49,7 @@ public class AuthControllerTest {
         req.setEmail("user@email.com");
         req.setFirstName("First");
         req.setLastName("Last");
-        doNothing().when(authService).register(any());
+        doNothing().when(authService).register(any(RegisterRequest.class), anyString());
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType(APPLICATION_JSON)
@@ -57,7 +57,7 @@ public class AuthControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(content().string("User registered successfully! Please verify your email."));
 
-        verify(authService).register(any());
+        verify(authService).register(any(RegisterRequest.class), anyString());
     }
 
     @Test
@@ -72,7 +72,7 @@ public class AuthControllerTest {
                         .content(json))
                 .andExpect(status().isBadRequest());
 
-        verify(authService, never()).register(any());
+        verify(authService, never()).register(any(RegisterRequest.class), anyString());
     }
 
     //Login Validation
@@ -150,7 +150,7 @@ public class AuthControllerTest {
         ResendVerificationRequest request = new ResendVerificationRequest();
         request.setEmail("rafa@email.com");
 
-        doNothing().when(authService).resendVerificationEmail("rafa@email.com");
+        doNothing().when(authService).resendVerificationEmail(eq("rafa@email.com"), anyString());
 
         mockMvc.perform(post("/api/auth/resend-verification")
                         .contentType(APPLICATION_JSON)
@@ -158,12 +158,11 @@ public class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string("Verification email sent!"));
 
-        verify(authService).resendVerificationEmail("rafa@email.com");
+        verify(authService).resendVerificationEmail(eq("rafa@email.com"), anyString());
     }
 
     @Test
     void resendVerification_Returns400_WhenEmailMissing() throws Exception {
-        // empty body => @Valid should fail because email is @NotBlank
         ResendVerificationRequest request = new ResendVerificationRequest();
 
         mockMvc.perform(post("/api/auth/resend-verification")
@@ -171,7 +170,7 @@ public class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
 
-        verify(authService, never()).resendVerificationEmail(anyString());
+        verify(authService, never()).resendVerificationEmail(anyString(), anyString());
     }
 
     @Test
@@ -184,6 +183,6 @@ public class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
 
-        verify(authService, never()).resendVerificationEmail(anyString());
+        verify(authService, never()).resendVerificationEmail(anyString(), anyString());
     }
 }

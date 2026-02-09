@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import task_manager_api.DTO.authentication.LoginRequest;
 import task_manager_api.DTO.authentication.RegisterRequest;
 import task_manager_api.DTO.authentication.ResendVerificationRequest;
@@ -23,7 +24,8 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<String> register(@Valid @RequestBody RegisterRequest request) {
-        authService.register(request);
+        String baseUrl = ServletUriComponentsBuilder.fromCurrentContextPath().build().toUriString();
+        authService.register(request, baseUrl);
         return ResponseEntity.status(HttpStatus.CREATED).body("User registered successfully! Please verify your email.");
     }
 
@@ -41,7 +43,8 @@ public class AuthController {
 
     @PostMapping("/resend-verification")
     public ResponseEntity<String> resendVerification(@Valid @RequestBody ResendVerificationRequest request) {
-        authService.resendVerificationEmail(request.getEmail());
+        String baseUrl = ServletUriComponentsBuilder.fromCurrentContextPath().build().toUriString();
+        authService.resendVerificationEmail(request.getEmail(), baseUrl);
         return ResponseEntity.ok("Verification email sent!");
     }
 }
