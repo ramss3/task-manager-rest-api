@@ -7,4 +7,4 @@ import lombok.*;
 @Setter
 public class TeamCreateDTO {
     @NotBlank
-    private String teamName; }
+    private String name; }

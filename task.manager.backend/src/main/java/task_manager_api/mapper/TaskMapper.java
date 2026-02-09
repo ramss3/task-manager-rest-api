@@ -42,7 +42,7 @@ public class TaskMapper {
 
         if(task.getUser() != null) {
             UserSummaryDTO creator = new  UserSummaryDTO();
-            creator.setUserId(task.getUser().getId());
+            creator.setId(task.getUser().getId());
             creator.setUsername(task.getUser().getUsername());
             creator.setEmail(task.getUser().getEmail());
             dto.setCreator(creator);
@@ -62,7 +62,6 @@ public class TaskMapper {
         TaskSummaryDTO dto = new TaskSummaryDTO();
         dto.setId(task.getId());
         dto.setTitle(task.getTitle());
-        dto.setDescription(task.getDescription());
         dto.setStatus(task.getStatus());
         dto.setDeadline(task.getDeadline());
         return dto;
@@ -75,5 +74,4 @@ public class TaskMapper {
     public static List<TaskSummaryDTO> toSummaryDTOList(List<Task> tasks) {
         return tasks.stream().map(TaskMapper::toSummaryDTO).collect(Collectors.toList());
     }
-
 }
