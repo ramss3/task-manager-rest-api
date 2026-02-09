@@ -11,6 +11,7 @@ public class TeamMapper {
     public static TeamResponseDTO toResponseDTO(Team team) {
         if (team == null) return null;
         TeamResponseDTO dto = new TeamResponseDTO();
+        dto.setTeamId(team.getId());
         dto.setTeamName(team.getName());
         dto.setCreatedAt(team.getCreatedAt());
 

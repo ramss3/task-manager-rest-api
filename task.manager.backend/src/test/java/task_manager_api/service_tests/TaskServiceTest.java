@@ -53,8 +53,6 @@ public class TaskServiceTest {
     private User user;
 
     private Team team;
-    @Autowired
-    private TeamMembershipRepository teamMembershipRepository;
 
     @BeforeEach
     public void setUp() {

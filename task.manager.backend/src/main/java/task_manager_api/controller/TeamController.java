@@ -30,7 +30,7 @@ public class TeamController {
         return ResponseEntity.status(HttpStatus.CREATED).body(teamResponseDTO);
     }
 
-    @PostMapping("/{teamId}/members")
+    @PostMapping("/{teamId}/members/add")
     public ResponseEntity<TeamResponseDTO> addUserToTeam(@PathVariable Long teamId,
                                                          @Valid @RequestBody AddTeamMemberDTO memberDTO,
                                                          @RequestParam(defaultValue = "MEMBER")TeamRole role) {

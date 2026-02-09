@@ -64,6 +64,7 @@ public class TaskControllerTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.title").value("New Task"));
 
     }
@@ -86,6 +87,25 @@ public class TaskControllerTest {
                 .andExpect(jsonPath("$[0].title").value("First Task"))
                 .andExpect(jsonPath("$[1].title").value("Second Task"));
 
+    }
+
+    @Test
+    void getTasksByTeam() throws Exception {
+        TaskResponseDTO t1 = TaskResponseDTO.builder()
+                .id(1)
+                .title("Team task")
+                .status(Status.COMPLETED)
+                .build();
+
+        when(taskService.getTasksByTeam(1L)).thenReturn(List.of(t1));
+
+        mockMvc.perform(get("/api/tasks/team/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(1))
+                .andExpect(jsonPath("$[0].title").value("Team task"));
+
+        verify(taskService).getTasksByTeam(1L);
     }
 
     @Test
@@ -129,6 +149,14 @@ public class TaskControllerTest {
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].id").value(1))
                 .andExpect(jsonPath("$[0].status").value("COMPLETED"));
+    }
+
+    @Test
+    void getAllStatuses() throws Exception {
+        mockMvc.perform(get("/api/tasks/statuses"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0]").exists());
     }
 
     @Test

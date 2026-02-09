@@ -10,6 +10,8 @@ import java.util.List;
 @Setter
 public class TeamResponseDTO {
 
+    private Long teamId;
+
     private String teamName;
 
     private LocalDateTime createdAt;
