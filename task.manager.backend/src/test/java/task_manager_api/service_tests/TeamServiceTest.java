@@ -3,7 +3,6 @@ package task_manager_api.service_tests;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.AfterEach;
-import org.mockito.ArgumentCaptor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -18,6 +17,7 @@ import task_manager_api.DTO.team.TeamCreateDTO;
 import task_manager_api.DTO.team.TeamResponseDTO;
 import task_manager_api.DTO.team.TeamUpdateDTO;
 import task_manager_api.DTO.team.UserMemberDTO;
+import task_manager_api.exceptions.ConflictException;
 import task_manager_api.exceptions.ResourceNotFoundException;
 import task_manager_api.exceptions.UnauthorizedActionException;
 import task_manager_api.model.*;
@@ -25,7 +25,9 @@ import task_manager_api.repository.TasksRepository;
 import task_manager_api.repository.TeamMembershipRepository;
 import task_manager_api.repository.TeamRepository;
 import task_manager_api.repository.UserRepository;
+import task_manager_api.service.team.TeamAccessAuthService;
 import task_manager_api.service.team.TeamService;
+import task_manager_api.service.user.UserLookupService;
 import task_manager_api.service.user.UserService;
 
 @SpringBootTest
@@ -46,6 +48,12 @@ public class TeamServiceTest {
     @MockitoBean
     private UserService userService;
 
+    @MockitoBean
+    private UserLookupService userLookupService;
+
+    @MockitoBean
+    private TeamAccessAuthService teamAccessAuthService;
+
     @Autowired
     private TeamService teamService;
 
@@ -60,7 +68,10 @@ public class TeamServiceTest {
 
     @AfterEach
     void tearDown() {
-        clearInvocations(teamRepository, userRepository, teamMembershipRepository, tasksRepository, userService);
+        clearInvocations(
+                teamRepository, userRepository, teamMembershipRepository,
+                tasksRepository, userService, userLookupService, teamAccessAuthService
+        );
     }
 
     private User createUser(long id, String username) {
@@ -75,7 +86,7 @@ public class TeamServiceTest {
         team.setId(teamId);
         team.setMemberships(new ArrayList<>());
 
-        lenient().when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        lenient().when(teamAccessAuthService.requireTeam(teamId)).thenReturn(team);
         return team;
     }
 
@@ -91,13 +102,12 @@ public class TeamServiceTest {
     private Team mockTeamAndLoggedUserMembership(long teamId, TeamRole role) {
         Team team = createTeam(teamId);
 
-        if(role != null) {
+        if (role != null) {
             TeamMembership membership = createTeamMembership(team, loggedUser, role);
-            when(teamMembershipRepository.findByTeamAndUser(team, loggedUser))
-                    .thenReturn(Optional.of(membership));
+            when(teamAccessAuthService.requireMembership(team, loggedUser)).thenReturn(membership);
         } else {
-            when(teamMembershipRepository.findByTeamAndUser(team, loggedUser))
-                    .thenReturn(Optional.empty());
+            when(teamAccessAuthService.requireMembership(team, loggedUser))
+                    .thenThrow(new UnauthorizedActionException("You are not a member of this team"));
         }
 
         return team;
@@ -105,8 +115,7 @@ public class TeamServiceTest {
 
     private User mockUserFound(Long id, String username) {
         User user = createUser(id, username);
-        when(userRepository.findById(id))
-                .thenReturn(Optional.of(user));
+        when(userLookupService.requireUser(id)).thenReturn(user);
         return user;
     }
 
@@ -126,27 +135,18 @@ public class TeamServiceTest {
 
         when(teamRepository.save(any(Team.class))).thenReturn(savedTeam);
 
+        // make createMembership return a membership so the service can add it
+        TeamMembership ownerMembership = createTeamMembership(savedTeam, loggedUser, TeamRole.OWNER);
+        when(teamAccessAuthService.createMembership(savedTeam, loggedUser, TeamRole.OWNER))
+                .thenReturn(ownerMembership);
+
         TeamResponseDTO result = teamService.createTeam(dto);
 
-        // Verify if team was correctly saved
         assertNotNull(result);
         assertEquals("testTeam", result.getTeamName());
 
-        // Verify repository calls
         verify(teamRepository).save(any(Team.class));
-
-        // Capture the membership saved
-        ArgumentCaptor<TeamMembership> membershipCaptor = ArgumentCaptor.forClass(TeamMembership.class);
-        verify(teamMembershipRepository).save(membershipCaptor.capture());
-
-        // Get the team membership value
-        TeamMembership capturedMembership = membershipCaptor.getValue();
-
-        // Verify if membership is OWNER
-        assertNotNull(capturedMembership);
-        assertEquals(TeamRole.OWNER, capturedMembership.getTeamRole());
-        assertEquals(loggedUser, capturedMembership.getUser());
-        assertEquals(savedTeam, capturedMembership.getTeam());
+        verify(teamAccessAuthService).createMembership(savedTeam, loggedUser, TeamRole.OWNER);
     }
 
     @Test
@@ -203,23 +203,27 @@ public class TeamServiceTest {
     @Test
     void addMemberSuccessfully_WhenLoggedUserIsOwner() {
         Team team = mockTeamAndLoggedUserMembership(1L, TeamRole.OWNER);
-        User newUser = mockUserFound(2L, "newUser");
+        User newUser = createUser(2L, "newUser");
 
-        when(teamMembershipRepository.existsByTeamAndUser(team, newUser))
-                .thenReturn(false);
+        when(userLookupService.searchByIdentifier("newUser")).thenReturn(newUser);
+        when(teamAccessAuthService.isMember(team, newUser)).thenReturn(false);
+
+        TeamMembership created = createTeamMembership(team, newUser, TeamRole.MEMBER);
+        when(teamAccessAuthService.createMembership(team, newUser, TeamRole.MEMBER)).thenReturn(created);
 
         when(teamRepository.save(team)).thenReturn(team);
 
         TeamResponseDTO result = teamService.addUserToTeam(1L, "newUser", TeamRole.MEMBER);
 
         assertNotNull(result);
-        verify(teamMembershipRepository).save(any(TeamMembership.class));
+        verify(teamAccessAuthService).createMembership(team, newUser, TeamRole.MEMBER);
         verify(teamRepository).save(team);
     }
 
     @Test
     void addMemberFails_WhenTeamNotFound() {
-        when(teamRepository.findById(1L)).thenReturn(Optional.empty());
+        when(teamAccessAuthService.requireTeam(1L))
+                .thenThrow(new ResourceNotFoundException("Team not found"));
 
         ResourceNotFoundException ex = assertThrows(
                 ResourceNotFoundException.class,
@@ -231,7 +235,6 @@ public class TeamServiceTest {
 
     @Test
     void addMemberFails_WhenLoggedMemberIsNotMemberOfTeam() {
-
         mockTeamAndLoggedUserMembership(5L, null);
 
         UnauthorizedActionException ex = assertThrows(
@@ -268,9 +271,13 @@ public class TeamServiceTest {
 
     @Test
     void addMemberFails_WhenUserNotFound() {
-        mockTeamAndLoggedUserMembership(1L, TeamRole.OWNER);
+        Team team = createTeam(1L);
 
-        when(userRepository.findById(2L)).thenReturn(Optional.empty());
+        when(teamAccessAuthService.requireMembership(team, loggedUser))
+                .thenReturn(createTeamMembership(team, loggedUser, TeamRole.OWNER));
+
+        when(userLookupService.searchByIdentifier("newUser"))
+                .thenThrow(new ResourceNotFoundException("User not found"));
 
         ResourceNotFoundException ex = assertThrows(
                 ResourceNotFoundException.class,
@@ -278,17 +285,25 @@ public class TeamServiceTest {
         );
 
         assertEquals("User not found", ex.getMessage());
-
     }
 
     @Test
     void addMemberFails_WhenUserAlreadyInTeam() {
-        Team team = mockTeamAndLoggedUserMembership(1L, TeamRole.OWNER);
-        User user = mockUserFound(2L, "newUser");
-        when(teamMembershipRepository.existsByTeamAndUser(team, user)).thenReturn(true);
+        Team team = createTeam(1L);
+        User target = createUser(2L, "newUser");
 
-        IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
+        TeamMembership ownerMembership = createTeamMembership(team, loggedUser, TeamRole.OWNER);
+
+        when(userService.getLoggedUser()).thenReturn(loggedUser);
+        when(teamAccessAuthService.requireTeam(team.getId())).thenReturn(team);
+        when(teamAccessAuthService.requireMembership(team, loggedUser)).thenReturn(ownerMembership);
+
+        when(userLookupService.searchByIdentifier("newUser")).thenReturn(target);
+
+        when(teamAccessAuthService.isMember(team, target)).thenReturn(true);
+
+        ConflictException ex = assertThrows(
+                ConflictException.class,
                 () -> teamService.addUserToTeam(1L, "newUser", TeamRole.MEMBER)
         );
 
@@ -301,24 +316,26 @@ public class TeamServiceTest {
 
     @Test
     void updateUserRoleSuccessfully_WhenOwnerUpdatesMemberToAdmin() {
-        Team team = mockTeamAndLoggedUserMembership(1L, TeamRole.OWNER);
-        User user = mockUserFound(2L, "member");
-        TeamMembership memberToUpdate = createTeamMembership(team, user, TeamRole.MEMBER);
+        Team team = createTeam(1L);
 
-        when(teamMembershipRepository.findByTeamAndUser(team, user))
-                .thenReturn(Optional.of(memberToUpdate));
+        TeamMembership loggedMembership = createTeamMembership(team, loggedUser, TeamRole.OWNER);
+        when(teamAccessAuthService.requireMembership(team, loggedUser)).thenReturn(loggedMembership);
 
-        TeamResponseDTO result = teamService.updateUserRole(team.getId(), user.getId(), TeamRole.ADMIN);
+        User userToUpdate = mockUserFound(2L, "member");
+        TeamMembership memberToUpdate = createTeamMembership(team, userToUpdate, TeamRole.MEMBER);
+        when(teamAccessAuthService.requireMembership(team, userToUpdate)).thenReturn(memberToUpdate);
+
+        TeamResponseDTO result = teamService.updateUserRole(team.getId(), userToUpdate.getId(), TeamRole.ADMIN);
 
         verify(teamMembershipRepository).save(memberToUpdate);
         assertEquals(TeamRole.ADMIN, memberToUpdate.getTeamRole());
         assertNotNull(result);
-
     }
 
     @Test
     void updateUserRoleFails_WhenTeamNotFound() {
-        when(teamRepository.findById(1L)).thenReturn(Optional.empty());
+        when(teamAccessAuthService.requireTeam(1L))
+                .thenThrow(new ResourceNotFoundException("Team not found"));
 
         ResourceNotFoundException ex = assertThrows(
                 ResourceNotFoundException.class,
@@ -331,8 +348,9 @@ public class TeamServiceTest {
     @Test
     void updateUserRoleFails_WhenLoggedUserIsNotInTeam() {
         Team team = createTeam(1L);
-        when(teamMembershipRepository.findByTeamAndUser(team, loggedUser))
-                .thenReturn(Optional.empty());
+
+        when(teamAccessAuthService.requireMembership(team, loggedUser))
+                .thenThrow(new UnauthorizedActionException("You are not a member of this team"));
 
         UnauthorizedActionException ex = assertThrows(
                 UnauthorizedActionException.class,
@@ -355,8 +373,13 @@ public class TeamServiceTest {
 
     @Test
     void updateUserRoleFails_WhenUserNotFound() {
-        mockTeamAndLoggedUserMembership(1L, TeamRole.OWNER);
-        when(userRepository.findById(2L)).thenReturn(Optional.empty());
+        Team team = createTeam(1L);
+
+        when(teamAccessAuthService.requireMembership(team, loggedUser))
+                .thenReturn(createTeamMembership(team, loggedUser, TeamRole.OWNER));
+
+        when(userLookupService.requireUser(2L))
+                .thenThrow(new ResourceNotFoundException("User not found"));
 
         ResourceNotFoundException ex = assertThrows(
                 ResourceNotFoundException.class,
@@ -368,26 +391,35 @@ public class TeamServiceTest {
 
     @Test
     void updateUserRoleFails_WhenUserToUpdateNotInTeam() {
-        Team team = mockTeamAndLoggedUserMembership(1L, TeamRole.OWNER);
-        User user = mockUserFound(2L, "target");
-        when(teamMembershipRepository.findByTeamAndUser(team, user))
-                .thenReturn(Optional.empty());
+        Team team = createTeam(1L);
+
+        when(teamAccessAuthService.requireMembership(team, loggedUser))
+                .thenReturn(createTeamMembership(team, loggedUser, TeamRole.OWNER));
+
+        User target = mockUserFound(2L, "target");
+
+        when(teamAccessAuthService.requireMembership(team, target))
+                .thenThrow(new UnauthorizedActionException("You are not a member of this team"));
 
         UnauthorizedActionException ex = assertThrows(
                 UnauthorizedActionException.class,
                 () -> teamService.updateUserRole(1L, 2L, TeamRole.ADMIN)
         );
-        assertEquals("The desired user is not a member of this team", ex.getMessage());
+
+        assertEquals("You are not a member of this team", ex.getMessage());
     }
 
     @Test
     void updateUserRoleFails_WhenAdminTriesToPromoteToOwner() {
-        Team team = mockTeamAndLoggedUserMembership(1L, TeamRole.ADMIN);
-        User user = mockUserFound(2L, "target");
-        TeamMembership memberToUpdate = createTeamMembership(team, user, TeamRole.ADMIN);
+        Team team = createTeam(1L);
 
-        when(teamMembershipRepository.findByTeamAndUser(team, user))
-                .thenReturn(Optional.of(memberToUpdate));
+        when(teamAccessAuthService.requireMembership(team, loggedUser))
+                .thenReturn(createTeamMembership(team, loggedUser, TeamRole.ADMIN));
+
+        User target = mockUserFound(2L, "target");
+
+        TeamMembership targetMembership = createTeamMembership(team, target, TeamRole.ADMIN);
+        when(teamAccessAuthService.requireMembership(team, target)).thenReturn(targetMembership);
 
         UnauthorizedActionException ex = assertThrows(
                 UnauthorizedActionException.class,
@@ -401,10 +433,11 @@ public class TeamServiceTest {
     void updateRoleFails_WhenAdminTriesToDemoteOwner() {
         Team team = mockTeamAndLoggedUserMembership(1L, TeamRole.ADMIN);
         User user = mockUserFound(2L, "target");
-        TeamMembership memberToUpdate = createTeamMembership(team, user, TeamRole.OWNER);
 
-        when(teamMembershipRepository.findByTeamAndUser(team, user))
-                .thenReturn(Optional.of(memberToUpdate));
+        when(teamAccessAuthService.requireMembership(team, user))
+                .thenReturn(createTeamMembership(team, user, TeamRole.OWNER));
+
+        when(userLookupService.requireUser(user.getId())).thenReturn(user);
 
         UnauthorizedActionException ex = assertThrows(
                 UnauthorizedActionException.class,
@@ -416,19 +449,22 @@ public class TeamServiceTest {
 
     @Test
     void updateRoleFails_WhenOwnerTriesToDemotesSelf() {
-        Team team = mockTeamAndLoggedUserMembership(1L, TeamRole.OWNER);
+        Team team = createTeam(1L);
 
-        when(userRepository.findById(loggedUser.getId()))
-                .thenReturn(Optional.of(loggedUser));
+        when(teamAccessAuthService.requireMembership(team, loggedUser))
+                .thenReturn(createTeamMembership(team, loggedUser, TeamRole.OWNER));
 
-        TeamMembership membership = createTeamMembership(team, loggedUser, TeamRole.OWNER);
-        when(teamMembershipRepository.findByTeamAndUser(team, loggedUser))
-                .thenReturn(Optional.of(membership));
+        when(userLookupService.requireUser(loggedUser.getId())).thenReturn(loggedUser);
+
+        // membershipToUpdate is the same membership as loggedMembership in this case
+        when(teamAccessAuthService.requireMembership(team, loggedUser))
+                .thenReturn(createTeamMembership(team, loggedUser, TeamRole.OWNER));
 
         UnauthorizedActionException ex = assertThrows(
                 UnauthorizedActionException.class,
                 () -> teamService.updateUserRole(1L, loggedUser.getId(), TeamRole.MEMBER)
         );
+
         assertEquals("Owner cannot demote themselves", ex.getMessage());
     }
 
@@ -438,27 +474,28 @@ public class TeamServiceTest {
 
     @Test
     void removeUserSuccessfully_WhenOwnerRemovesMember() {
-        Team team = mockTeamAndLoggedUserMembership(1L, TeamRole.OWNER);
-        User userToBeRemoved = mockUserFound(1L, "target");
+        Team team = createTeam(1L);
 
-        when(userRepository.findById(1L))
-            .thenReturn(Optional.of(userToBeRemoved));
+        when(teamAccessAuthService.requireMembership(team, loggedUser))
+                .thenReturn(createTeamMembership(team, loggedUser, TeamRole.OWNER));
 
-        TeamMembership membership = createTeamMembership(team, userToBeRemoved, TeamRole.MEMBER);
-        team.getMemberships().add(membership);
+        User target = mockUserFound(1L, "target");
 
-        when(teamMembershipRepository.findByTeamAndUser(team, userToBeRemoved))
-            .thenReturn(Optional.of(membership));
+        TeamMembership targetMembership = createTeamMembership(team, target, TeamRole.MEMBER);
+        team.getMemberships().add(targetMembership);
+
+        when(teamAccessAuthService.requireMembership(team, target)).thenReturn(targetMembership);
 
         teamService.removeUserFromTeam(1L, 1L);
 
-        verify(teamMembershipRepository).delete(membership);
+        verify(teamMembershipRepository).delete(targetMembership);
         verify(teamRepository).save(team);
     }
 
     @Test
     void removerUserFails_WhenTeamNotFound() {
-        when(teamRepository.findById(1L)).thenReturn(Optional.empty());
+        when(teamAccessAuthService.requireTeam(1L))
+                .thenThrow(new ResourceNotFoundException("Team not found"));
 
         ResourceNotFoundException ex = assertThrows(
                 ResourceNotFoundException.class,
@@ -471,8 +508,8 @@ public class TeamServiceTest {
     void removerUserFails_WhenLoggedUserIsNotInTeam() {
         Team team = createTeam(1L);
 
-        when(teamMembershipRepository.findByTeamAndUser(team, loggedUser))
-            .thenReturn(Optional.empty());
+        when(teamAccessAuthService.requireMembership(team, loggedUser))
+                .thenThrow(new UnauthorizedActionException("You are not a member of this team"));
 
         UnauthorizedActionException ex = assertThrows(
                 UnauthorizedActionException.class,
@@ -480,6 +517,7 @@ public class TeamServiceTest {
         );
         assertEquals("You are not a member of this team", ex.getMessage());
     }
+
 
     @Test
     void removeUserFails_WhenLoggedUserIsMember() {
@@ -494,46 +532,64 @@ public class TeamServiceTest {
 
     @Test
     void removeUserFails_WhenUserToBeRemovedNotFound() {
-        Team team = mockTeamAndLoggedUserMembership(1L, TeamRole.OWNER);
+        Team team = createTeam(1L);
+
+        when(teamAccessAuthService.requireMembership(team, loggedUser))
+                .thenReturn(createTeamMembership(team, loggedUser, TeamRole.OWNER));
+
+        when(userLookupService.requireUser(2L))
+                .thenThrow(new ResourceNotFoundException("User not found"));
 
         ResourceNotFoundException ex = assertThrows(
                 ResourceNotFoundException.class,
-                () -> teamService.removeUserFromTeam(team.getId(),  2L)
+                () -> teamService.removeUserFromTeam(team.getId(), 2L)
         );
         assertEquals("User not found", ex.getMessage());
     }
 
     @Test
     void removeUserFails_WhenUserToBeRemovedIsNotInTeam() {
-        Team team = mockTeamAndLoggedUserMembership(1L, TeamRole.OWNER);
-        User user = createUser(1L, "userNotInTeam");
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        Team team = createTeam(1L);
+        User targetUser = createUser(2L, "userNotInTeam");
 
-        when(teamMembershipRepository.findByTeamAndUser(team, user))
-                .thenReturn(Optional.empty());
+        // logged user is allowed (OWNER or ADMIN)
+        when(teamAccessAuthService.requireMembership(team, loggedUser))
+                .thenReturn(createTeamMembership(team, loggedUser, TeamRole.OWNER));
 
-        ResourceNotFoundException ex = assertThrows(
-                ResourceNotFoundException.class,
-                () -> teamService.removeUserFromTeam(team.getId(), user.getId())
+        // user exists
+        when(userLookupService.requireUser(targetUser.getId()))
+                .thenReturn(targetUser);
+
+        // but target is NOT in the team
+        when(teamAccessAuthService.requireMembership(team, targetUser))
+                .thenThrow(new UnauthorizedActionException("You are not a member of this team"));
+
+        UnauthorizedActionException ex = assertThrows(
+                UnauthorizedActionException.class,
+                () -> teamService.removeUserFromTeam(team.getId(), targetUser.getId())
         );
-        assertEquals("User is not a member of this team", ex.getMessage());
+
+        assertEquals("You are not a member of this team", ex.getMessage());
     }
 
     @Test
     void removeUserFails_WhenTryingToRemoveOwner() {
-        Team team = mockTeamAndLoggedUserMembership(1L, TeamRole.ADMIN);
-        User user = createUser(1L, "owner");
+        Team team = createTeam(1L);
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(teamAccessAuthService.requireMembership(team, loggedUser))
+                .thenReturn(createTeamMembership(team, loggedUser, TeamRole.ADMIN));
 
-        TeamMembership ownerRemoval = createTeamMembership(team, user, TeamRole.OWNER);
-        when(teamMembershipRepository.findByTeamAndUser(team, user))
-                .thenReturn(Optional.of(ownerRemoval));
+        User ownerUser = mockUserFound(1L, "owner");
+
+        TeamMembership ownerMembership = createTeamMembership(team, ownerUser, TeamRole.OWNER);
+        when(teamAccessAuthService.requireMembership(team, ownerUser))
+                .thenReturn(ownerMembership);
 
         UnauthorizedActionException ex = assertThrows(
                 UnauthorizedActionException.class,
-                () -> teamService.removeUserFromTeam(team.getId(), user.getId())
+                () -> teamService.removeUserFromTeam(team.getId(), ownerUser.getId())
         );
+
         assertEquals("You cannot remove the team owner", ex.getMessage());
     }
 
@@ -543,37 +599,37 @@ public class TeamServiceTest {
 
     @Test
     void getTeamMembersSuccessfully() {
-        Team team = createTeam(1L);
+        Long teamId = 1L;
+        Team team = createTeam(teamId);
+
+        TeamMembership loggedMembership =
+                createTeamMembership(team, loggedUser, TeamRole.ADMIN);
+
         User user1 = createUser(1L, "user1");
         User user2 = createUser(2L, "user2");
 
         TeamMembership membership1 = createTeamMembership(team, user1, TeamRole.MEMBER);
         TeamMembership membership2 = createTeamMembership(team, user2, TeamRole.OWNER);
-        TeamMembership membership3 = createTeamMembership(team, loggedUser, TeamRole.ADMIN);
 
+        when(userService.getLoggedUser()).thenReturn(loggedUser);
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(teamMembershipRepository.findByTeamAndUser(team, loggedUser))
+                .thenReturn(Optional.of(loggedMembership));
         when(teamMembershipRepository.findByTeam(team))
-                .thenReturn(List.of(membership1, membership2, membership3));
+                .thenReturn(List.of(membership1, membership2, loggedMembership));
 
-        List<UserMemberDTO> result = teamService.getTeamMembers(1L);
-        assertNotNull(result);
+        List<UserMemberDTO> result = teamService.getTeamMembers(teamId);
+
         assertEquals(3, result.size());
-
-        UserMemberDTO user1Dto = result.get(0);
-        UserMemberDTO user2Dto = result.get(1);
-        UserMemberDTO user3Dto = result.get(2);
-
-        assertEquals(TeamRole.MEMBER, user1Dto.getRole());
-        assertEquals(TeamRole.OWNER, user2Dto.getRole());
-        assertEquals(TeamRole.ADMIN, user3Dto.getRole());
-
-        System.out.println("\n=== Members in Team ===");
-        result.forEach(members ->
-                System.out.println("Member: " + members.getUsername()));
+        assertEquals(TeamRole.MEMBER, result.get(0).getRole());
+        assertEquals(TeamRole.OWNER, result.get(1).getRole());
+        assertEquals(TeamRole.ADMIN, result.get(2).getRole());
     }
 
     @Test
     void getTeamMembersFails_WhenTeamNotFound() {
-        when(teamRepository.findById(1L)).thenReturn(Optional.empty());
+        when(teamAccessAuthService.requireTeam(1L))
+                .thenThrow(new ResourceNotFoundException("Team not found"));
 
         ResourceNotFoundException ex = assertThrows(
                 ResourceNotFoundException.class,
@@ -589,7 +645,17 @@ public class TeamServiceTest {
 
     @Test
     void getTeamTasksSuccessfully() {
-        Team team = createTeam(1L);
+        Long teamId = 1L;
+        Team team = createTeam(teamId);
+
+        User user = new User();
+        user.setId(10L);
+        user.setUsername("user");
+
+        TeamMembership membership = new TeamMembership();
+        membership.setTeam(team);
+        membership.setUser(user);
+        membership.setTeamRole(TeamRole.MEMBER);
 
         Task task1 = new Task();
         task1.setId(1);
@@ -603,22 +669,23 @@ public class TeamServiceTest {
         task2.setDescription("task2");
         task2.setTeam(team);
 
+        when(userService.getLoggedUser()).thenReturn(user);
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(teamMembershipRepository.findByTeamAndUser(team, user)).thenReturn(Optional.of(membership));
         when(tasksRepository.findByTeam(team)).thenReturn(List.of(task1, task2));
 
-        List<TaskSummaryDTO> result = teamService.getTeamTasks(1L);
+        List<TaskSummaryDTO> result = teamService.getTeamTasks(teamId);
 
         assertNotNull(result);
         assertEquals(2, result.size());
         assertEquals("task1", result.get(0).getTitle());
         assertEquals("task2", result.get(1).getTitle());
-
-        System.out.println("\n=== Team Tasks ===");
-        result.forEach(task -> System.out.println("Task: " + task.getTitle()));
     }
 
     @Test
     void getTeamTasksFails_WhenTeamNotFound() {
-        when(teamRepository.findById(1L)).thenReturn(Optional.empty());
+        when(teamAccessAuthService.requireTeam(1L))
+                .thenThrow(new ResourceNotFoundException("Team not found"));
 
         ResourceNotFoundException ex = assertThrows(
                 ResourceNotFoundException.class,
@@ -630,11 +697,16 @@ public class TeamServiceTest {
 
     @Test
     void getTeamTasksReturnsEmptyList_WhenNoTasksExist() {
-        Team team = createTeam(1L);
+        Long teamId = 1L;
+        Team team = createTeam(teamId);
 
+        when(userService.getLoggedUser()).thenReturn(loggedUser);
+        when(teamRepository.findById(teamId)).thenReturn(Optional.of(team));
+        when(teamMembershipRepository.findByTeamAndUser(team, loggedUser))
+                .thenReturn(Optional.of(createTeamMembership(team, loggedUser, TeamRole.MEMBER)));
         when(tasksRepository.findByTeam(team)).thenReturn(Collections.emptyList());
 
-        List<TaskSummaryDTO> result = teamService.getTeamTasks(1L);
+        List<TaskSummaryDTO> result = teamService.getTeamTasks(teamId);
 
         assertNotNull(result);
         assertTrue(result.isEmpty());
@@ -647,15 +719,14 @@ public class TeamServiceTest {
     @Test
     void updateTeamSuccessfully() {
         Team team = createTeam(1L);
+
         TeamMembership membership = createTeamMembership(team, loggedUser, TeamRole.OWNER);
-        team.getMemberships().add(membership);
+        when(teamAccessAuthService.requireMembership(team, loggedUser)).thenReturn(membership);
 
         TeamUpdateDTO dto = new TeamUpdateDTO();
         dto.setTeamName("Updated Team Name");
 
-        when(teamMembershipRepository.findByTeamAndUser(team, loggedUser))
-                .thenReturn(Optional.of(membership));
-        when(teamRepository.save(any(Team.class))).thenReturn(team);
+        when(teamRepository.save(team)).thenReturn(team);
 
         TeamResponseDTO result = teamService.updateTeam(1L, dto);
 
@@ -666,7 +737,8 @@ public class TeamServiceTest {
 
     @Test
     void updateTeamFails_WhenTeamNotFound() {
-        when(teamRepository.findById(1L)).thenReturn(Optional.empty());
+        when(teamAccessAuthService.requireTeam(1L))
+                .thenThrow(new ResourceNotFoundException("Team not found"));
 
         TeamUpdateDTO dto = new TeamUpdateDTO();
         dto.setTeamName("Updated Team Name");
@@ -680,28 +752,29 @@ public class TeamServiceTest {
 
     @Test
     void updateTeamFails_WhenUserNotMember() {
-        Team team = createTeam(1L);
-        when(teamMembershipRepository.findByTeamAndUser(team, loggedUser))
-                .thenReturn(Optional.empty());
+        long teamId = 1L;
+        createTeam(teamId);
+
+        when(teamAccessAuthService.requireMembership(any(Team.class), eq(loggedUser)))
+                .thenThrow(new UnauthorizedActionException("You are not a member of this team"));
 
         TeamUpdateDTO dto = new TeamUpdateDTO();
         dto.setTeamName("Updated Team Name");
 
         UnauthorizedActionException ex = assertThrows(
                 UnauthorizedActionException.class,
-                () -> teamService.updateTeam(1L, dto)
+                () -> teamService.updateTeam(teamId, dto)
         );
-        assertEquals("You are not a member of the team", ex.getMessage());
+
+        assertEquals("You are not a member of this team", ex.getMessage());
     }
 
     @Test
     void updateTeamFails_WhenLoggedUserNotOwner() {
         Team team = createTeam(1L);
-        TeamMembership membership = createTeamMembership(team, loggedUser, TeamRole.ADMIN);
-        team.getMemberships().add(membership);
 
-        when(teamMembershipRepository.findByTeamAndUser(team, loggedUser))
-                .thenReturn(Optional.of(membership));
+        when(teamAccessAuthService.requireMembership(team, loggedUser))
+                .thenReturn(createTeamMembership(team, loggedUser, TeamRole.ADMIN));
 
         TeamUpdateDTO dto = new TeamUpdateDTO();
         dto.setTeamName("Updated Team Name");
@@ -710,6 +783,7 @@ public class TeamServiceTest {
                 UnauthorizedActionException.class,
                 () -> teamService.updateTeam(1L, dto)
         );
+
         assertEquals("Only the owner can update the team", ex.getMessage());
     }
 
@@ -729,7 +803,8 @@ public class TeamServiceTest {
 
     @Test
     void deleteTeamFails_WhenTeamNotFound() {
-        when(teamRepository.findById(1L)).thenReturn(Optional.empty());
+        when(teamAccessAuthService.requireTeam(1L))
+                .thenThrow(new ResourceNotFoundException("Team not found"));
 
         ResourceNotFoundException ex = assertThrows(
                 ResourceNotFoundException.class,
@@ -742,14 +817,16 @@ public class TeamServiceTest {
     @Test
     void deleteTeamFails_WhenUserNotMemberOfTeam() {
         Team team = createTeam(1L);
-        when(teamMembershipRepository.findByTeamAndUser(team, loggedUser))
-                .thenReturn(Optional.empty());
+
+        when(teamAccessAuthService.requireMembership(team, loggedUser))
+                .thenThrow(new UnauthorizedActionException("You are not a member of this team"));
 
         UnauthorizedActionException ex = assertThrows(
                 UnauthorizedActionException.class,
                 () -> teamService.deleteTeam(1L)
         );
-        assertEquals("You are not a member of the team", ex.getMessage());
+
+        assertEquals("You are not a member of this team", ex.getMessage());
     }
 
     @Test
@@ -762,5 +839,4 @@ public class TeamServiceTest {
         );
         assertEquals("Only the team owner can delete the team", ex.getMessage());
     }
-
 }

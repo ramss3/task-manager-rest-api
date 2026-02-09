@@ -8,14 +8,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import task_manager_api.DTO.task.TaskCreateDTO;
 import task_manager_api.exceptions.ResourceNotFoundException;
 import task_manager_api.exceptions.UnauthorizedActionException;
-import task_manager_api.model.Status;
-import task_manager_api.model.Task;
-import task_manager_api.model.Team;
-import task_manager_api.model.User;
+import task_manager_api.model.*;
 import task_manager_api.repository.TasksRepository;
 import task_manager_api.repository.TeamMembershipRepository;
 import task_manager_api.repository.TeamRepository;
 import task_manager_api.service.task.TaskService;
+import task_manager_api.service.team.TeamAccessAuthService;
 import task_manager_api.service.user.UserService;
 import task_manager_api.DTO.task.*;
 
@@ -43,6 +41,9 @@ public class TaskServiceTest {
 
     @MockitoBean
     private TeamMembershipRepository membershipRepository;
+
+    @MockitoBean
+    private TeamAccessAuthService teamAccessAuthService;
 
     @MockitoBean
     private UserService userService;
@@ -97,10 +98,16 @@ public class TaskServiceTest {
         dto.setTitle("Test Task Service");
         dto.setTeamId(team.getId());
 
+        TeamMembership membership = new TeamMembership();
+        membership.setTeam(team);
+        membership.setUser(user);
+        membership.setTeamRole(TeamRole.MEMBER);
+
         when(userService.getLoggedUser()).thenReturn(user);
-        when(teamRepository.findById(team.getId())).thenReturn(Optional.of(team));
-        when(teamMembershipRepository.existsByTeamAndUser(team,user)).thenReturn(true);
-        when(tasksRepository.save(any(Task.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(teamAccessAuthService.requireTeam(team.getId())).thenReturn(team);
+        when(teamAccessAuthService.requireMembership(team, user)).thenReturn(membership);
+        when(tasksRepository.save(any(Task.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
 
         TaskResponseDTO response = taskService.createTask(dto);
 
@@ -115,7 +122,8 @@ public class TaskServiceTest {
         dto.setTeamId(team.getId());
 
         when(userService.getLoggedUser()).thenReturn(user);
-        when(teamRepository.findById(team.getId())).thenReturn(Optional.empty());
+        when(teamAccessAuthService.requireTeam(team.getId()))
+                .thenThrow(new ResourceNotFoundException("Team not found"));
 
         ResourceNotFoundException ex = assertThrows(
                 ResourceNotFoundException.class,
@@ -132,14 +140,15 @@ public class TaskServiceTest {
         dto.setTeamId(team.getId());
 
         when(userService.getLoggedUser()).thenReturn(wrongUser);
-        when(teamRepository.findById(team.getId())).thenReturn(Optional.of(team));
-        when(teamMembershipRepository.existsByTeamAndUser(team,wrongUser)).thenReturn(false);
+        when(teamAccessAuthService.requireTeam(team.getId())).thenReturn(team);
+        when(teamAccessAuthService.requireMembership(team, wrongUser))
+                .thenThrow(new UnauthorizedActionException("You are not a member of this team"));
 
         UnauthorizedActionException ex = assertThrows(
                 UnauthorizedActionException.class,
                 () -> taskService.createTask(dto)
         );
-        assertEquals("You are attempting to assign a task to a team that you do not belong to", ex.getMessage());
+        assertEquals("You are not a member of this team", ex.getMessage());
     }
 
     @Test
@@ -224,7 +233,7 @@ public class TaskServiceTest {
     @Test
     void findByTitleSuccessfully() {
         when(userService.getLoggedUser()).thenReturn(user);
-        when(tasksRepository.findByTitleContainingIgnoreCase(task.getTitle())).thenReturn(List.of(task));
+        when(tasksRepository.findByUserAndTitleContainingIgnoreCase(userService.getLoggedUser(), task.getTitle())).thenReturn(List.of(task));
 
         List<TaskSummaryDTO> result = taskService.findByTitle(task.getTitle());
 
@@ -236,7 +245,7 @@ public class TaskServiceTest {
     @Test
     void findByStatusSuccessfully() {
         when(userService.getLoggedUser()).thenReturn(user);
-        when(tasksRepository.findByStatus(task.getStatus())).thenReturn(List.of(task));
+        when(tasksRepository.findByUserAndStatus(userService.getLoggedUser(), task.getStatus())).thenReturn(List.of(task));
 
         List<TaskSummaryDTO> result = taskService.findByStatus(task.getStatus());
         assertNotNull(result);
@@ -264,9 +273,4 @@ public class TaskServiceTest {
         );
         assertEquals("Task not found", ex.getMessage());
     }
-
-
-
-
-
 }
