@@ -53,7 +53,7 @@ class TeamControllerTest {
     @Test
     void createTeam_Returns201() throws Exception {
         TeamCreateDTO createTeamDTO = new TeamCreateDTO();
-        createTeamDTO.setTeamName("teamName");
+        createTeamDTO.setName("teamName");
 
         TeamResponseDTO responseDTO = new TeamResponseDTO();
         responseDTO.setTeamId(1L);

@@ -42,7 +42,7 @@ public class TeamService {
         User user = userService.getLoggedUser();
 
         Team team = new Team();
-        team.setName(dto.getTeamName());
+        team.setName(dto.getName());
         Team createdTeam = teamRepository.save(team);
 
         TeamMembership ownerMembership = teamAccessAuthService.createMembership(createdTeam, user, TeamRole.OWNER);
