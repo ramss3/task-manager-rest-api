@@ -7,6 +7,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -18,12 +19,11 @@ import task_manager_api.security.UserPrincipal;
 import task_manager_api.service.auth.CustomUserDetailsService;
 import task_manager_api.service.user.UserService;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @WebMvcTest(UserController.class)
 @AutoConfigureMockMvc(addFilters = false) // Keeps the Handler from being null
@@ -72,7 +72,7 @@ class UserControllerTest {
     }
 
     @Test
-    void testDeleteOtherAccount_ShouldBeForbidden() throws Exception {
+    void testDeleteOtherAccount_ShouldBeForbidden() {
         Long myId = 1L;
         Long targetId = 2L;
 
@@ -91,7 +91,7 @@ class UserControllerTest {
             });
 
             // Verify the root cause is indeed an Authorization error
-            assertTrue(exception.getCause() instanceof org.springframework.security.authorization.AuthorizationDeniedException);
+            assertInstanceOf(AuthorizationDeniedException.class, exception.getCause());
 
             // Verify the service was NEVER called
             verify(userService, never()).deleteUser(targetId);

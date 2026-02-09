@@ -18,7 +18,7 @@ public class EmailService {
         this.mailSender = mailSender;
     }
 
-    public void sendVerificationEmail(String email, String token, String link) {
+    public void sendVerificationEmail(String email, String link) {
         try {
             String subject = "Task Handler - Email Verification";
             String body = "Click the following link to verify your account:\n" + link;

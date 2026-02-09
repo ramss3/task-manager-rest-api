@@ -1,5 +1,6 @@
 package task_manager_api.service.auth;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +18,7 @@ import task_manager_api.service.notification.EmailService;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class AuthService {
 
     private final UserRepository userRepository;
@@ -24,18 +26,6 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailService emailService;
     private final VerificationTokenRepository verificationTokenRepository;
-
-
-    public AuthService(UserRepository userRepository,
-                       PasswordEncoder passwordEncoder,
-                       JwtTokenProvider jwtTokenProvider,
-                       EmailService emailService, VerificationTokenRepository verificationTokenRepository) {
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.jwtTokenProvider = jwtTokenProvider;
-        this.emailService = emailService;
-        this.verificationTokenRepository = verificationTokenRepository;
-    }
 
     @Transactional
     public void register(RegisterRequest request) {
@@ -58,9 +48,7 @@ public class AuthService {
         verificationTokenRepository.save(verificationToken);
 
         String link = "http://localhost:8080/api/auth/verify?token=" + token;
-        emailService.sendVerificationEmail(user.getEmail(), token, link);
-
-
+        emailService.sendVerificationEmail(user.getEmail(), link);
     }
 
     public String login(LoginRequest request) {
@@ -109,10 +97,9 @@ public class AuthService {
         String newToken = UUID.randomUUID().toString();
         VerificationToken verificationToken = new VerificationToken(newToken, user);
         verificationTokenRepository.save(verificationToken);
-        verificationToken.setUsed(true);
 
         String link = "http://localhost:8080/api/auth/verify?token=" + newToken;
-        emailService.sendVerificationEmail(user.getEmail(), newToken, link);
+        emailService.sendVerificationEmail(user.getEmail(), link);
 
         System.out.println("Resent verification email to " + user.getEmail());
 
