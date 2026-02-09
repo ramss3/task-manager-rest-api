@@ -5,9 +5,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import task_manager_api.DTO.authentication.LoginRequest;
+import task_manager_api.DTO.authentication.RegisterRequest;
 import task_manager_api.DTO.authentication.ResendVerificationRequest;
 import task_manager_api.controller.AuthController;
 import task_manager_api.security.JwtAuthenticationFilter;
@@ -16,6 +17,7 @@ import task_manager_api.service.auth.AuthService;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -38,24 +40,22 @@ public class AuthControllerTest {
     @MockitoBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
+    //Register Validation
     @Test
-    void register_Returns201() throws Exception {
-        String json = """
-            {
-              "username": "rafa",
-              "password": "password123",
-              "email": "rafa@email.com",
-              "firstName": "Rafael",
-              "lastName": "Silva",
-              "title": "Mr"
-            }
-            """;
+    void register_Returns201_WhenValid() throws Exception {
+        RegisterRequest req = new RegisterRequest();
+        req.setUsername("user");
+        req.setPassword("pass");
+        req.setEmail("user@email.com");
+        req.setFirstName("First");
+        req.setLastName("Last");
+        req.setTitle(/* whatever your enum/type is */ null); // adjust/remove if required
 
         doNothing().when(authService).register(any());
 
         mockMvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated())
                 .andExpect(content().string("User registered successfully! Please verify your email."));
 
@@ -70,30 +70,70 @@ public class AuthControllerTest {
             """;
 
         mockMvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
+                        .contentType(APPLICATION_JSON)
                         .content(json))
                 .andExpect(status().isBadRequest());
 
         verify(authService, never()).register(any());
     }
 
+    //Login Validation
     @Test
-    void login_Returns200_WithToken() throws Exception {
-        String json = """
-            { "username": "rafa", "password": "password123" }
-            """;
+    void login_Returns400_WhenBodyEmpty() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+
+        verify(authService, never()).login(any());
+    }
+
+    @Test
+    void login_Returns400_WhenUsernameBlank() throws Exception {
+        LoginRequest req = new LoginRequest();
+        req.setUsername("   ");
+        req.setPassword("pass");
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest());
+
+        verify(authService, never()).login(any());
+    }
+
+    @Test
+    void login_Returns400_WhenPasswordBlank() throws Exception {
+        LoginRequest req = new LoginRequest();
+        req.setUsername("user");
+        req.setPassword("   ");
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest());
+
+        verify(authService, never()).login(any());
+    }
+
+    @Test
+    void login_Returns200_WhenValid() throws Exception {
+        LoginRequest req = new LoginRequest();
+        req.setUsername("user");
+        req.setPassword("pass");
 
         when(authService.login(any())).thenReturn("jwt-token");
 
         mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").value("jwt-token"));
 
         verify(authService).login(any());
     }
 
+    //Verify Validation
     @Test
     void verifyAccount_Returns200() throws Exception {
         doNothing().when(authService).verifyAccount("abc123");
@@ -106,6 +146,7 @@ public class AuthControllerTest {
         verify(authService).verifyAccount("abc123");
     }
 
+    //Resend Validation
     @Test
     void resendVerification_Returns200() throws Exception {
         ResendVerificationRequest request = new ResendVerificationRequest();
@@ -114,7 +155,7 @@ public class AuthControllerTest {
         doNothing().when(authService).resendVerificationEmail("rafa@email.com");
 
         mockMvc.perform(post("/api/auth/resend-verification")
-                        .contentType(MediaType.APPLICATION_JSON)
+                        .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(content().string("Verification email sent!"));
@@ -128,7 +169,7 @@ public class AuthControllerTest {
         ResendVerificationRequest request = new ResendVerificationRequest();
 
         mockMvc.perform(post("/api/auth/resend-verification")
-                        .contentType(MediaType.APPLICATION_JSON)
+                        .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
 
@@ -141,7 +182,7 @@ public class AuthControllerTest {
         request.setEmail("not-an-email");
 
         mockMvc.perform(post("/api/auth/resend-verification")
-                        .contentType(MediaType.APPLICATION_JSON)
+                        .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
 
