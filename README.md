@@ -8,75 +8,75 @@ This API is intended to be used as the backend for a web or mobile application.
 
 The Task Manager API allows authenticated users to:
 
-    - Create, update, and track tasks
+- Create, update, and track tasks
 
-    - Create and manage teams
+- Create and manage teams
 
-    - Assign roles to team members 
+- Assign roles to team members 
 
-    - Enforce permissions based on team roles
+- Enforce permissions based on team roles
 
-    - Secure all endpoints using JWT authentication
+- Secure all endpoints using JWT authentication
 
 🔑 ***Key Features***
 
 👤 ***Authentication & Security***
 
-    - JWT‑based authentication
+- JWT‑based authentication
 
-    - Secure password handling
+- Secure password handling
 
-    - Authentication filter applied to protected endpoints
+- Authentication filter applied to protected endpoints
 
-    - Role‑aware authorization logic
+- Role‑aware authorization logic
 
 ✅ ***Task Management***
 
-    - Create tasks within teams
+- Create tasks within teams
 
-    - Assign tasks to users
+- Assign tasks to users
 
-    - Update task status and metadata
+- Update task status and metadata
 
-    - Fetch task summaries
+- Fetch task summaries
 
 👥 ***Team Management***
 
-    - Create and update teams
+- Create and update teams
 
-    - Invite users to teams by username or email
+- Invite users to teams by username or email
 
-    - Remove team members
+- Remove team members
 
-    - List team members with assigned roles
+- List team members with assigned roles
 
 👤 ***Role‑Based Access Control***
 
 Each team member has a role:
 
-    - OWNER –> Full control over the team
+- OWNER –> Full control over the team
 
-    - ADMIN –> Can manage members and tasks
+- ADMIN –> Can manage members and tasks
 
-    - MEMBER –> Can interact with tasks
+- MEMBER –> Can interact with tasks
 
 Role logic is encapsulated directly in an enum for clarity and reuse.
 
 🔄 ***Clean DTO Mapping***
 
-    - Clear separation between entities and API responses
+- Clear separation between entities and API responses
 
-    - Dedicated DTOs for create, update, and response flows
+- Dedicated DTOs for create, update, and response flows
 
-    - Centralized mappers for consistency
+- Centralized mappers for consistency
 
 🧪 ***Testability***
 
-    - Services structured for unit testing
+- Services structured for unit testing
 
-    - Dependency injection throughout the application
+- Dependency injection throughout the application
 
-    - Mock‑friendly service boundaries
+- Mock‑friendly service boundaries
 
 ***API Architecture***
 
@@ -94,23 +94,23 @@ Mapper Layer – DTO ↔ Entity transformations
 
 🛠 ***Tech Stack***
 
-Java 17+
+- Java 17+
 
-Spring Boot
+- Spring Boot
 
-Spring Security
+- Spring Security
 
-Spring Data JPA
+- Spring Data JPA
 
-Hibernate
+- Hibernate
 
-JWT Authentication
+- JWT Authentication
 
-Maven
+- Maven
 
-PostgreSQL
+- PostgreSQL
 
-Docker containerization
+- Docker
 
 
 🔑 **Authentication Flow**
@@ -123,9 +123,9 @@ API returns a JWT token and a verification email
 
 Base path: /api
 
-    - All endpoints require a valid JWT except the authentication endpoints under /api/auth
+- All endpoints require a valid JWT except the authentication endpoints under /api/auth
 
-    Auth (/api/auth)
+    - **Auth (/api/auth)**
 
     |   Method    |                  Endpoint                  |                  Description                 |
     |-------------|--------------------------------------------|----------------------------------------------|
@@ -137,7 +137,7 @@ Base path: /api
     |     PUT     |                /users/{id}                 |             Update your own user             |
     |    DELETE   |                /users/{id}                 |             Delete your own user             |
     
-    Teams (/api/teams)
+  - **Teams (/api/teams)**
 
     |   Method     |                  Endpoint                        |                  Description                  |
     |--------------|--------------------------------------------------|-----------------------------------------------|
@@ -151,7 +151,7 @@ Base path: /api
     |    DELETE    |           /teams/{teamId}/users/{userId}         |          Remove a user from the team          |
     |     GET      |               /teams/{teamId}/tasks              |      Get tasks for a team (summary view)      |
 
-    Tasks (/api/tasks)
+  - **Tasks (/api/tasks)**
 
     |   Method     |                  Endpoint             |                  Description                   |
     |--------------|---------------------------------------|------------------------------------------------|
@@ -168,10 +168,10 @@ Base path: /api
 
 The API uses custom exceptions for clarity:
 
-    - ResourceNotFoundException
+- ResourceNotFoundException
 
-    - UnauthorizedActionException
+- UnauthorizedActionException
 
-    - ConflictException
+- ConflictException
 
 Each exception maps to an appropriate HTTP status code and message.
