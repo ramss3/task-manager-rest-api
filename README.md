@@ -18,6 +18,8 @@ The Task Manager API allows authenticated users to:
 
 - Secure all endpoints using JWT authentication
 
+----------------------------------------------------------------------------------------
+
 🔑 ***Key Features***
 
 👤 ***Authentication & Security***
@@ -30,6 +32,8 @@ The Task Manager API allows authenticated users to:
 
 - Role‑aware authorization logic
 
+----------------------------------------------------------------------------------------
+
 ✅ ***Task Management***
 
 - Create tasks within teams
@@ -40,6 +44,8 @@ The Task Manager API allows authenticated users to:
 
 - Fetch task summaries
 
+----------------------------------------------------------------------------------------
+
 👥 ***Team Management***
 
 - Create and update teams
@@ -49,6 +55,8 @@ The Task Manager API allows authenticated users to:
 - Remove team members
 
 - List team members with assigned roles
+
+----------------------------------------------------------------------------------------
 
 👤 ***Role‑Based Access Control***
 
@@ -62,6 +70,8 @@ Each team member has a role:
 
 Role logic is encapsulated directly in an enum for clarity and reuse.
 
+----------------------------------------------------------------------------------------
+
 🔄 ***Clean DTO Mapping***
 
 - Clear separation between entities and API responses
@@ -70,6 +80,9 @@ Role logic is encapsulated directly in an enum for clarity and reuse.
 
 - Centralized mappers for consistency
 
+----------------------------------------------------------------------------------------
+
+
 🧪 ***Testability***
 
 - Services structured for unit testing
@@ -77,10 +90,14 @@ Role logic is encapsulated directly in an enum for clarity and reuse.
 - Dependency injection throughout the application
 
 - Mock‑friendly service boundaries
+  
+----------------------------------------------------------------------------------------
 
 ***API Architecture***
 
 <img width="8191" height="4004" alt="Security Boundary for JWT-2026-02-10-164545" src="https://github.com/user-attachments/assets/3f6f13d0-a60c-4a60-9d49-abeb49986098" />
+
+----------------------------------------------------------------------------------------
 
 🛠 ***Tech Stack***
 
@@ -102,12 +119,15 @@ Role logic is encapsulated directly in an enum for clarity and reuse.
 
 - Docker
 
+----------------------------------------------------------------------------------------
 
 🔑 **Authentication Flow**
 
 User registers or logs in
 
 API returns a JWT token and a verification email
+
+----------------------------------------------------------------------------------------
 
 📡 ***API Endpoints***
 
@@ -117,15 +137,15 @@ Base path: /api
 
     - **Auth (/api/auth)**
 
-    |   Method    |                  Endpoint                  |                  Description                 |
-    |-------------|--------------------------------------------|----------------------------------------------|
-    |     POST    |                   /users                   |                Create a user                 |
-    |     GET     |               /users/profile               |  Get the current authenticated user profile  |
-    |     GET     |            /users/profile/teams            |         Get the current user’s teams         |
-    |     GET     |         /users/username/{username}         |            Find a user by username           |
-    |     GET     |              /users?email=...              |             Find a user by email             |
-    |     PUT     |                /users/{id}                 |             Update your own user             |
-    |    DELETE   |                /users/{id}                 |             Delete your own user             |
+        |   Method    |                  Endpoint                  |                  Description                 |
+        |-------------|--------------------------------------------|----------------------------------------------|
+        |     POST    |                   /users                   |                Create a user                 |
+        |     GET     |               /users/profile               |  Get the current authenticated user profile  |
+        |     GET     |            /users/profile/teams            |         Get the current user’s teams         |
+        |     GET     |         /users/username/{username}         |            Find a user by username           |
+        |     GET     |              /users?email=...              |             Find a user by email             |
+        |     PUT     |                /users/{id}                 |             Update your own user             |
+        |    DELETE   |                /users/{id}                 |             Delete your own user             |
     
   - **Teams (/api/teams)**
 
@@ -155,6 +175,9 @@ Base path: /api
     |     GET      |     /tasks/search/status/{status}     |             Filter tasks by status             |
     |     GET      |            /tasks/statuses            |         List all possible task statuses        | 
 
+----------------------------------------------------------------------------------------
+
+⚠️ ***Error Handling***
 
 The API uses custom exceptions for clarity:
 
@@ -165,3 +188,17 @@ The API uses custom exceptions for clarity:
 - ConflictException
 
 Each exception maps to an appropriate HTTP status code and message.
+
+----------------------------------------------------------------------------------------
+
+🤝 Contributing
+
+Contributions are welcome.
+
+Fork the repository
+
+Create a feature branch
+
+Commit your changes
+
+Open a pull request
