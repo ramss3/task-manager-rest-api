@@ -80,17 +80,7 @@ Role logic is encapsulated directly in an enum for clarity and reuse.
 
 ***API Architecture***
 
-Key Layers
-
-Controller Layer – Handles HTTP requests and responses
-
-Service Layer – Contains business logic and validation
-
-Repository Layer – Data access via Spring Data JPA
-
-Model Layer – Domain entities and enums
-
-Mapper Layer – DTO ↔ Entity transformations
+<img width="8191" height="4004" alt="Security Boundary for JWT-2026-02-10-164545" src="https://github.com/user-attachments/assets/3f6f13d0-a60c-4a60-9d49-abeb49986098" />
 
 🛠 ***Tech Stack***
 
