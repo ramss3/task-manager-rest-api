@@ -10,13 +10,20 @@ import task_manager_api.exceptions.BadRequestException;
 import task_manager_api.exceptions.ConflictException;
 import task_manager_api.exceptions.ResourceNotFoundException;
 import task_manager_api.exceptions.UnauthorizedActionException;
+import task_manager_api.model.RefreshToken;
 import task_manager_api.model.User;
 import task_manager_api.model.VerificationToken;
+import task_manager_api.repository.RefreshTokenRepository;
 import task_manager_api.repository.UserRepository;
 import task_manager_api.repository.VerificationTokenRepository;
 import task_manager_api.security.JwtTokenProvider;
 import task_manager_api.service.notification.EmailService;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.Instant;
+import java.util.HexFormat;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -28,6 +35,17 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailService emailService;
     private final VerificationTokenRepository verificationTokenRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
+
+    private static String sha256Hex(String value) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest(value.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (Exception e) {
+            throw new IllegalStateException("Unable to hash token", e);
+        }
+    }
 
     @Transactional
     public void register(RegisterRequest request, String url) {
@@ -64,7 +82,8 @@ public class AuthService {
         emailService.sendVerificationEmail(user.getEmail(), link);
     }
 
-    public String login(LoginRequest request) {
+    @Transactional
+    public Map<String, String> login(LoginRequest request) {
         String username = request.getUsername() == null ? "" : request.getUsername().trim();
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("Username not found"));
@@ -77,7 +96,73 @@ public class AuthService {
             throw new UnauthorizedActionException("Invalid credentials");
         }
 
-        return jwtTokenProvider.generateToken(user.getId());
+        String accessToken = jwtTokenProvider.generateAccessToken(user.getId());
+        String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId());
+
+        RefreshToken rt = new RefreshToken();
+        rt.setUserId(user.getId());
+        rt.setJti(jwtTokenProvider.getJti(refreshToken));
+        rt.setTokenHash(sha256Hex(accessToken));
+        rt.setExpiresAt(jwtTokenProvider.getExpiration(refreshToken).toInstant());
+        refreshTokenRepository.save(rt);
+
+        return Map.of(
+                "accessToken", accessToken,
+                "refreshToken", refreshToken
+        );
+    }
+
+    @Transactional
+    public Map<String, String> refresh(String refreshToken) {
+        if(refreshToken == null || refreshToken.isBlank()) {
+            throw new BadRequestException("Refresh token is required");
+        }
+
+        if(!jwtTokenProvider.validateToken(refreshToken)) {
+            throw new UnauthorizedActionException("Invalid refresh token");
+        }
+
+        String typ = jwtTokenProvider.getTokenType(refreshToken);
+        if(!"refresh".equals(typ)) {
+            throw new UnauthorizedActionException("Invalid refresh token");
+        }
+
+        Long userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
+        String jti = jwtTokenProvider.getJti(refreshToken);
+
+        RefreshToken stored = refreshTokenRepository.findByJti(jti)
+                .orElseThrow(() -> new UnauthorizedActionException("Refresh token not recognized"));
+
+        String hash = sha256Hex(refreshToken);
+        if(!stored.getTokenHash().equals(hash)) {
+            throw new UnauthorizedActionException("Refresh token mismatch");
+        }
+
+        if(stored.isRevoked() || stored.isExpired()) {
+            throw new UnauthorizedActionException("Refresh token revoked or expired");
+        }
+
+        // Rotation -> revoke old refresh, issue and save new refresh
+        stored.setRevokedAt(Instant.now());
+
+        String newAccess = jwtTokenProvider.generateAccessToken(userId);
+        String newRefresh = jwtTokenProvider.generateRefreshToken(userId);
+
+        stored.setReplacedByJti(jwtTokenProvider.getJti(newRefresh));
+        refreshTokenRepository.save(stored);
+
+        RefreshToken newReplacement = new RefreshToken();
+        newReplacement.setUserId(userId);
+        newReplacement.setJti(jwtTokenProvider.getJti(newRefresh));
+        newReplacement.setTokenHash(sha256Hex(refreshToken));
+        newReplacement.setExpiresAt(jwtTokenProvider.getExpiration(refreshToken).toInstant());
+        refreshTokenRepository.save(newReplacement);
+
+        return Map.of(
+                "accessToken", newAccess,
+                "refreshToken", newRefresh
+        );
+
     }
 
     @Transactional

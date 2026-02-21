@@ -20,7 +20,12 @@ import task_manager_api.repository.VerificationTokenRepository;
 import task_manager_api.security.JwtTokenProvider;
 import task_manager_api.service.auth.AuthService;
 import task_manager_api.service.notification.EmailService;
+import task_manager_api.repository.RefreshTokenRepository;
+import task_manager_api.model.RefreshToken;
 
+import java.time.Instant;
+import java.util.Date;
+import java.util.Map;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -37,6 +42,7 @@ class AuthServiceTest {
     PasswordEncoder passwordEncoder;
     @MockitoBean JwtTokenProvider jwtTokenProvider;
     @MockitoBean EmailService emailService;
+    @MockitoBean RefreshTokenRepository refreshTokenRepository;
 
     @Autowired
     AuthService authService;
@@ -53,6 +59,22 @@ class AuthServiceTest {
         validRegister.setPassword("pass");
         validRegister.setFirstName("A");
         validRegister.setLastName("B");
+    }
+
+    private RefreshToken storedRt(long userId, String jti, boolean revoked, Instant expiresAt, String tokenHash) {
+        RefreshToken rt = new RefreshToken();
+        rt.setUserId(userId);
+        rt.setJti(jti);
+        rt.setTokenHash(tokenHash);
+        rt.setExpiresAt(expiresAt);
+        if (revoked) rt.setRevokedAt(Instant.now());
+        return rt;
+    }
+
+    private static String sha256HexForTest(String value) throws Exception {
+        var md = java.security.MessageDigest.getInstance("SHA-256");
+        var digest = md.digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return java.util.HexFormat.of().formatHex(digest);
     }
 
     @Test
@@ -178,8 +200,11 @@ class AuthServiceTest {
 
         when(userRepository.findByUsername("user")).thenReturn(Optional.of(u));
 
-        UnauthorizedActionException ex = assertThrows(UnauthorizedActionException.class, () -> authService.login(req));
+        UnauthorizedActionException ex =
+                assertThrows(UnauthorizedActionException.class, () -> authService.login(req));
         assertEquals("Please verify your email before logging in.", ex.getMessage());
+
+        verify(refreshTokenRepository, never()).save(any());
     }
 
     @Test
@@ -200,7 +225,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void login_Success_ReturnsJwt() {
+    void login_Success_ReturnsAccessAndRefresh_AndSavesRefreshToken() {
         LoginRequest req = new LoginRequest();
         req.setUsername("user");
         req.setPassword("pass");
@@ -212,10 +237,25 @@ class AuthServiceTest {
 
         when(userRepository.findByUsername("user")).thenReturn(Optional.of(u));
         when(passwordEncoder.matches("pass", "ENC")).thenReturn(true);
-        when(jwtTokenProvider.generateToken(5L)).thenReturn("JWT");
 
-        String token = authService.login(req);
-        assertEquals("JWT", token);
+        when(jwtTokenProvider.generateAccessToken(5L)).thenReturn("ACCESS");
+        when(jwtTokenProvider.generateRefreshToken(5L)).thenReturn("REFRESH");
+        when(jwtTokenProvider.getJti("REFRESH")).thenReturn("jti-123");
+        when(jwtTokenProvider.getExpiration("REFRESH")).thenReturn(new Date(System.currentTimeMillis() + 100000));
+
+        Map<String, String> tokens = authService.login(req);
+
+        assertEquals("ACCESS", tokens.get("accessToken"));
+        assertEquals("REFRESH", tokens.get("refreshToken"));
+
+        ArgumentCaptor<RefreshToken> rtCaptor = ArgumentCaptor.forClass(RefreshToken.class);
+        verify(refreshTokenRepository).save(rtCaptor.capture());
+
+        RefreshToken saved = rtCaptor.getValue();
+        assertEquals(5L, saved.getUserId());
+        assertEquals("jti-123", saved.getJti());
+        assertNotNull(saved.getTokenHash());
+        assertNotNull(saved.getExpiresAt());
     }
 
     @Test
@@ -243,12 +283,154 @@ class AuthServiceTest {
 
         when(userRepository.findByUsername("user")).thenReturn(Optional.of(u));
         when(passwordEncoder.matches("pass", "ENC")).thenReturn(true);
-        when(jwtTokenProvider.generateToken(5L)).thenReturn("JWT");
 
-        String token = authService.login(req);
-        assertEquals("JWT", token);
+        when(jwtTokenProvider.generateAccessToken(5L)).thenReturn("ACCESS");
+        when(jwtTokenProvider.generateRefreshToken(5L)).thenReturn("REFRESH");
+        when(jwtTokenProvider.getJti("REFRESH")).thenReturn("jti-123");
+        when(jwtTokenProvider.getExpiration("REFRESH")).thenReturn(new Date(System.currentTimeMillis() + 100000));
+
+        Map<String, String> tokens = authService.login(req);
+
+        assertEquals("ACCESS", tokens.get("accessToken"));
+        assertEquals("REFRESH", tokens.get("refreshToken"));
 
         verify(userRepository).findByUsername("user");
+    }
+
+    // --- Refresh Tests ---
+    @Test
+    void refresh_Success_RotatesAndReturnsNewTokens() throws Exception {
+        String incoming = "R";
+        long userId = 5L;
+        String oldJti = "jti-old";
+
+        when(jwtTokenProvider.validateToken(incoming)).thenReturn(true);
+        when(jwtTokenProvider.getTokenType(incoming)).thenReturn("refresh");
+        when(jwtTokenProvider.getUserIdFromToken(incoming)).thenReturn(userId);
+        when(jwtTokenProvider.getJti(incoming)).thenReturn(oldJti);
+
+        String hash = sha256HexForTest(incoming);
+        RefreshToken stored = storedRt(userId, oldJti, false, Instant.now().plusSeconds(3600), hash);
+        when(refreshTokenRepository.findByJti(oldJti)).thenReturn(Optional.of(stored));
+
+        when(jwtTokenProvider.generateAccessToken(userId)).thenReturn("NEW_ACCESS");
+        when(jwtTokenProvider.generateRefreshToken(userId)).thenReturn("NEW_REFRESH");
+        when(jwtTokenProvider.getJti("NEW_REFRESH")).thenReturn("jti-new");
+
+        when(jwtTokenProvider.getExpiration(anyString()))
+                .thenReturn(new Date(System.currentTimeMillis() + 100000));
+
+        Map<String, String> out = authService.refresh(incoming);
+
+        assertEquals("NEW_ACCESS", out.get("accessToken"));
+        assertEquals("NEW_REFRESH", out.get("refreshToken"));
+
+        assertNotNull(stored.getRevokedAt());
+        assertEquals("jti-new", stored.getReplacedByJti());
+
+        verify(refreshTokenRepository, times(2)).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void refresh_Fails_WhenTokenBlank() {
+        BadRequestException ex = assertThrows(
+                BadRequestException.class,
+                () -> authService.refresh("   ")
+        );
+        assertEquals("Refresh token is required", ex.getMessage());
+
+        verifyNoInteractions(jwtTokenProvider);
+        verifyNoInteractions(refreshTokenRepository);
+    }
+
+    @Test
+    void refresh_Fails_WhenJwtInvalid() {
+        when(jwtTokenProvider.validateToken("BAD")).thenReturn(false);
+
+        UnauthorizedActionException ex = assertThrows(
+                UnauthorizedActionException.class,
+                () -> authService.refresh("BAD")
+        );
+        assertEquals("Invalid refresh token", ex.getMessage());
+
+        verify(jwtTokenProvider).validateToken("BAD");
+        verifyNoInteractions(refreshTokenRepository);
+    }
+
+    @Test
+    void refresh_Fails_WhenNotRecognizedInDb() {
+        when(jwtTokenProvider.validateToken("R")).thenReturn(true);
+        when(jwtTokenProvider.getTokenType("R")).thenReturn("refresh");
+        when(jwtTokenProvider.getUserIdFromToken("R")).thenReturn(5L);
+        when(jwtTokenProvider.getJti("R")).thenReturn("jti-old");
+
+        when(refreshTokenRepository.findByJti("jti-old")).thenReturn(Optional.empty());
+
+        UnauthorizedActionException ex = assertThrows(
+                UnauthorizedActionException.class,
+                () -> authService.refresh("R")
+        );
+        assertEquals("Refresh token not recognized", ex.getMessage());
+    }
+
+    @Test
+    void refresh_Fails_WhenHashMismatch() {
+        when(jwtTokenProvider.validateToken("R")).thenReturn(true);
+        when(jwtTokenProvider.getTokenType("R")).thenReturn("refresh");
+        when(jwtTokenProvider.getUserIdFromToken("R")).thenReturn(5L);
+        when(jwtTokenProvider.getJti("R")).thenReturn("jti-old");
+
+        // stored hash doesn't match what service will compute for R
+        RefreshToken stored = storedRt(
+                5L,
+                "jti-old",
+                false,
+                Instant.now().plusSeconds(3600),
+                "some-other-hash"
+        );
+        when(refreshTokenRepository.findByJti("jti-old")).thenReturn(Optional.of(stored));
+
+        UnauthorizedActionException ex = assertThrows(
+                UnauthorizedActionException.class,
+                () -> authService.refresh("R")
+        );
+        assertEquals("Refresh token mismatch", ex.getMessage());
+    }
+
+    @Test
+    void refresh_Fails_WhenStoredRevoked() throws Exception {
+        when(jwtTokenProvider.validateToken("R")).thenReturn(true);
+        when(jwtTokenProvider.getTokenType("R")).thenReturn("refresh");
+        when(jwtTokenProvider.getUserIdFromToken("R")).thenReturn(5L);
+        when(jwtTokenProvider.getJti("R")).thenReturn("jti-old");
+
+        String hash = sha256HexForTest("R");
+        RefreshToken stored = storedRt(5L, "jti-old", true, Instant.now().plusSeconds(3600), hash);
+        when(refreshTokenRepository.findByJti("jti-old")).thenReturn(Optional.of(stored));
+
+        UnauthorizedActionException ex = assertThrows(
+                UnauthorizedActionException.class,
+                () -> authService.refresh("R")
+        );
+        assertEquals("Refresh token revoked or expired", ex.getMessage());
+    }
+
+    @Test
+    void refresh_Fails_WhenStoredExpired() throws Exception {
+        when(jwtTokenProvider.validateToken("R")).thenReturn(true);
+        when(jwtTokenProvider.getTokenType("R")).thenReturn("refresh");
+        when(jwtTokenProvider.getUserIdFromToken("R")).thenReturn(5L);
+        when(jwtTokenProvider.getJti("R")).thenReturn("jti-old");
+
+        String hash = sha256HexForTest("R");
+        RefreshToken stored = storedRt(5L, "jti-old", false, Instant.now().minusSeconds(1), hash);
+        when(refreshTokenRepository.findByJti("jti-old")).thenReturn(Optional.of(stored));
+
+        UnauthorizedActionException ex = assertThrows(
+                UnauthorizedActionException.class,
+                () -> authService.refresh("R")
+        );
+        assertEquals("Refresh token revoked or expired", ex.getMessage());
     }
 
     // --- Verify Tests ---

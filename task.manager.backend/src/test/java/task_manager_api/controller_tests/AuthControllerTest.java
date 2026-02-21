@@ -15,6 +15,8 @@ import task_manager_api.security.JwtAuthenticationFilter;
 import task_manager_api.security.JwtTokenProvider;
 import task_manager_api.service.auth.AuthService;
 
+import java.util.Map;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -120,15 +122,50 @@ public class AuthControllerTest {
         req.setUsername("user");
         req.setPassword("pass");
 
-        when(authService.login(any())).thenReturn("jwt-token");
+        when(authService.login(any())).thenReturn(Map.of(
+                "accessToken", "access-jwt",
+                "refreshToken", "refresh-jwt"
+        ));
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").value("jwt-token"));
+                .andExpect(jsonPath("$.accessToken").value("access-jwt"))
+                .andExpect(jsonPath("$.refreshToken").value("refresh-jwt"));
 
         verify(authService).login(any());
+    }
+
+    @Test
+    void refresh_Returns200_WhenValid() throws Exception {
+        when(authService.refresh(anyString())).thenReturn(Map.of(
+                "accessToken", "new-access",
+                "refreshToken", "new-refresh"
+        ));
+
+        String json = """
+        { "refreshToken": "old-refresh" }
+        """;
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value("new-access"))
+                .andExpect(jsonPath("$.refreshToken").value("new-refresh"));
+
+        verify(authService).refresh("old-refresh");
+    }
+
+    @Test
+    void refresh_Returns400_WhenMissingRefreshToken() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+
+        verify(authService, never()).refresh(anyString());
     }
 
     //Verify Validation

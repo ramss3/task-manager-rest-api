@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import task_manager_api.DTO.Auth.RefreshRequestDTO;
 import task_manager_api.authentication.LoginRequest;
 import task_manager_api.authentication.RegisterRequest;
 import task_manager_api.authentication.ResendVerificationRequest;
@@ -31,8 +32,12 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, String>> login(@Valid @RequestBody LoginRequest request) {
-        String token = authService.login(request);
-        return ResponseEntity.ok(Map.of("token", token));
+        return ResponseEntity.ok(authService.login(request));
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<Map<String, String>> refresh(@Valid @RequestBody RefreshRequestDTO request) {
+        return ResponseEntity.ok(authService.refresh(request.getRefreshToken()));
     }
 
     @GetMapping("/verify")
