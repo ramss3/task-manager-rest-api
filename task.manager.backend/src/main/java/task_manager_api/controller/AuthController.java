@@ -5,9 +5,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
-import task_manager_api.DTO.authentication.LoginRequest;
-import task_manager_api.DTO.authentication.RegisterRequest;
-import task_manager_api.DTO.authentication.ResendVerificationRequest;
+import task_manager_api.authentication.LoginRequest;
+import task_manager_api.authentication.RegisterRequest;
+import task_manager_api.authentication.ResendVerificationRequest;
 import task_manager_api.service.auth.AuthService;
 
 import java.util.Map;

@@ -1,4 +1,4 @@
-package task_manager_api.DTO.authentication;
+package task_manager_api.authentication;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
