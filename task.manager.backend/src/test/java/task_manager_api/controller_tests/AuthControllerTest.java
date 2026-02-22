@@ -7,9 +7,9 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import task_manager_api.authentication.LoginRequest;
-import task_manager_api.authentication.RegisterRequest;
-import task_manager_api.authentication.ResendVerificationRequest;
+import task_manager_api.DTO.Auth.LoginRequest;
+import task_manager_api.DTO.Auth.RegisterRequest;
+import task_manager_api.DTO.Auth.ResendVerificationRequest;
 import task_manager_api.controller.AuthController;
 import task_manager_api.security.JwtAuthenticationFilter;
 import task_manager_api.security.JwtTokenProvider;

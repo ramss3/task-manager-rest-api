@@ -65,13 +65,13 @@ public class JwtTokenProvider {
     }
 
     public String getTokenType(String token) {
-        Object type = Jwts.parserBuilder()
+        Object typ = Jwts.parserBuilder()
                 .setSigningKey(jwtSecret)
                 .build()
                 .parseClaimsJws(token)
                 .getBody()
                 .get(CLAIM_TYP);
-        return type == null ? null : type.toString();
+        return typ == null ? null : typ.toString();
     }
 
     public String getJti(String token) {

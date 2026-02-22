@@ -5,10 +5,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
-import task_manager_api.DTO.Auth.RefreshRequestDTO;
-import task_manager_api.authentication.LoginRequest;
-import task_manager_api.authentication.RegisterRequest;
-import task_manager_api.authentication.ResendVerificationRequest;
+import task_manager_api.DTO.Auth.RefreshRequest;
+import task_manager_api.DTO.Auth.LoginRequest;
+import task_manager_api.DTO.Auth.RegisterRequest;
+import task_manager_api.DTO.Auth.ResendVerificationRequest;
 import task_manager_api.service.auth.AuthService;
 
 import java.util.Map;
@@ -36,7 +36,7 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<Map<String, String>> refresh(@Valid @RequestBody RefreshRequestDTO request) {
+    public ResponseEntity<Map<String, String>> refresh(@Valid @RequestBody RefreshRequest request) {
         return ResponseEntity.ok(authService.refresh(request.getRefreshToken()));
     }
 
